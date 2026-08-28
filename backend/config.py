@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_base_url: str = ""
     llm_model: str = "qwen.qwen3-32b"
+    anthropic_model: str = "claude-sonnet-4-6"
     razorpay_key_id: str = ""
     razorpay_key_secret: str = ""
     database_url: str = "sqlite+aiosqlite:///./mcie.db"

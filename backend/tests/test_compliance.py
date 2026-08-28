@@ -5,6 +5,7 @@ from backend.agents.compliance_auditor import (
     _check_gst_display,
     _detect_business_category,
     _html_to_text,
+    _llm_quality_score,
     _search_page_for_policy,
 )
 
@@ -159,3 +160,36 @@ class TestSearchPageForPolicy:
         found, score = _search_page_for_policy(html, _REFUND_CHECK)
         assert found is True
         assert score >= 3
+
+
+class TestLLMQualityScore:
+    """Without an LLM the rule-based score must survive — it must not be replaced by a pass."""
+
+    async def test_falls_back_to_rule_based_score(self, monkeypatch):
+        monkeypatch.setattr("backend.agents.compliance_auditor.llm_complete", _empty_llm)
+        score, details = await _llm_quality_score("Lorem ipsum filler.", "Refund Policy", "ecommerce", fallback=2)
+        assert score == 2
+        assert "unavailable" in details.lower()
+
+    async def test_llm_score_wins_when_available(self, monkeypatch):
+        monkeypatch.setattr("backend.agents.compliance_auditor.llm_complete", _scoring_llm)
+        score, details = await _llm_quality_score("A thorough refund policy.", "Refund Policy", "ecommerce", fallback=2)
+        assert score == 9
+        assert details == "comprehensive"
+
+    async def test_bare_code_fence_is_stripped(self, monkeypatch):
+        monkeypatch.setattr("backend.agents.compliance_auditor.llm_complete", _bare_fence_llm)
+        score, _ = await _llm_quality_score("Some policy text.", "Refund Policy", "ecommerce", fallback=2)
+        assert score == 7
+
+
+async def _empty_llm(prompt: str, max_tokens: int = 512) -> str:
+    return ""
+
+
+async def _scoring_llm(prompt: str, max_tokens: int = 512) -> str:
+    return '{"score": 9, "issues": [], "details": "comprehensive"}'
+
+
+async def _bare_fence_llm(prompt: str, max_tokens: int = 512) -> str:
+    return '```\n{"score": 7, "issues": [], "details": "adequate"}\n```'

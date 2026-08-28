@@ -80,8 +80,10 @@ def _check_gst_display(all_html: str) -> tuple[bool, str | None]:
     return False, None
 
 
-async def _llm_quality_score(policy_text: str, policy_type: str, business_type: str) -> tuple[int, str]:
-    """Use LLM to semantically score policy quality (0-10) and detect issues."""
+async def _llm_quality_score(
+    policy_text: str, policy_type: str, business_type: str, fallback: int
+) -> tuple[int, str]:
+    """Score policy quality 0-10 with the LLM, falling back to the rule-based score."""
     prompt = f"""You are a compliance analyst evaluating merchant policies for RBI Payment Aggregator guidelines.
 
 Policy type: {policy_type}
@@ -103,13 +105,21 @@ Respond in JSON only:
     try:
         text = await llm_complete(prompt, max_tokens=256)
         if not text:
-            return 5, "LLM scoring unavailable"
-        if text.startswith("```"):
-            text = re.sub(r"^```json?\n?", "", text).rstrip("```").strip()
+            return fallback, "LLM scoring unavailable — rule-based score used"
+        text = _strip_code_fence(text)
         data = json.loads(text)
-        return int(data.get("score", 5)), data.get("details", "")
-    except Exception:
-        return 5, "LLM scoring unavailable"
+        return int(data.get("score", fallback)), data.get("details", "")
+    except Exception as e:
+        return fallback, f"LLM scoring unavailable ({type(e).__name__}) — rule-based score used"
+
+
+def _strip_code_fence(text: str) -> str:
+    """Remove a surrounding markdown code fence, with or without a language tag."""
+    text = text.strip()
+    if not text.startswith("```"):
+        return text
+    text = re.sub(r"^```[a-zA-Z]*\s*", "", text)
+    return re.sub(r"\s*```$", "", text).strip()
 
 
 async def run(state: EngineState) -> dict:
@@ -151,12 +161,14 @@ async def run(state: EngineState) -> dict:
             # Rule-based presence detection
             found, quality_score = _search_page_for_policy(page_html, check_def)
 
-            # LLM semantic quality scoring (if API key available)
+            # LLM semantic quality scoring, falling back to the rule-based score above
             details = ""
             llm_issues: list[str] = []
             if found:
                 business_type = state.merchant_input.business_type or "unknown"
-                quality_score, details = await _llm_quality_score(_html_to_text(page_html), check_def["name"], business_type)
+                quality_score, details = await _llm_quality_score(
+                    _html_to_text(page_html), check_def["name"], business_type, fallback=quality_score
+                )
                 if quality_score < 5:
                     llm_issues.append(f"Policy content appears inadequate: {details}")
 
@@ -239,10 +251,16 @@ async def run(state: EngineState) -> dict:
             duration_ms=round(duration_ms, 1),
         )
 
-        return {
+        update: dict = {
             "compliance_result": result,
             "audit_log": state.audit_log + [log],
         }
+        # A silent LLM failure would otherwise pass every policy at the threshold score
+        if any((c.details or "").startswith("LLM scoring unavailable") for c in (refund_check, privacy_check, terms_check)):
+            update["errors"] = state.errors + [
+                "ComplianceAuditor: LLM unavailable — policy quality scored by rules only"
+            ]
+        return update
 
     except Exception as e:
         duration_ms = (datetime.now(timezone.utc) - t0).total_seconds() * 1000

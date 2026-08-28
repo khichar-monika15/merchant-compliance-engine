@@ -1,11 +1,15 @@
 """Thin LLM wrapper — OpenAI-compatible (Bedrock mantle) or Anthropic direct API."""
 from __future__ import annotations
 
+from functools import lru_cache
+
 from backend.config import get_settings
+
+_TIMEOUT_SECONDS = 60.0
 
 
 async def llm_complete(prompt: str, max_tokens: int = 512) -> str:
-    """Send a single-turn prompt and return the text response."""
+    """Send a single-turn prompt and return the text response. Empty string when unconfigured."""
     settings = get_settings()
 
     if settings.openai_api_key and settings.openai_base_url:
@@ -17,13 +21,28 @@ async def llm_complete(prompt: str, max_tokens: int = 512) -> str:
     return ""
 
 
-async def _openai_complete(prompt: str, max_tokens: int) -> str:
+@lru_cache(maxsize=1)
+def _openai_client():
     from openai import AsyncOpenAI
 
     settings = get_settings()
-    client = AsyncOpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url)
-    resp = await client.chat.completions.create(
-        model=settings.llm_model,
+    return AsyncOpenAI(
+        api_key=settings.openai_api_key,
+        base_url=settings.openai_base_url,
+        timeout=_TIMEOUT_SECONDS,
+    )
+
+
+@lru_cache(maxsize=1)
+def _anthropic_client():
+    from anthropic import AsyncAnthropic
+
+    return AsyncAnthropic(api_key=get_settings().anthropic_api_key, timeout=_TIMEOUT_SECONDS)
+
+
+async def _openai_complete(prompt: str, max_tokens: int) -> str:
+    resp = await _openai_client().chat.completions.create(
+        model=get_settings().llm_model,
         max_tokens=max_tokens,
         messages=[{"role": "user", "content": prompt}],
     )
@@ -31,13 +50,10 @@ async def _openai_complete(prompt: str, max_tokens: int) -> str:
 
 
 async def _anthropic_complete(prompt: str, max_tokens: int) -> str:
-    from anthropic import AsyncAnthropic
-
-    settings = get_settings()
-    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
-    resp = await client.messages.create(
-        model="claude-sonnet-4-6",
+    resp = await _anthropic_client().messages.create(
+        model=get_settings().anthropic_model,
         max_tokens=max_tokens,
         messages=[{"role": "user", "content": prompt}],
     )
-    return resp.content[0].text.strip()
+    text = next((b.text for b in resp.content if getattr(b, "type", None) == "text"), "")
+    return text.strip()
