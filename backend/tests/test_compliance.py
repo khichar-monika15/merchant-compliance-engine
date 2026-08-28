@@ -55,6 +55,27 @@ class TestGSTDisplay:
         found, number = _check_gst_display(html)
         assert found is True
 
+    def test_commented_out_gstin_does_not_count(self):
+        """A GSTIN must be shown to customers — markup in a comment is not displayed."""
+        html = "<p>About us</p><!-- No GSTIN: 27AAPFU0939F1ZV -->"
+        found, number = _check_gst_display(html)
+        assert found is False
+        assert number is None
+
+    def test_placeholder_gstin_rejected(self):
+        found, number = _check_gst_display("<p>GSTIN: 27XXXXX1234X1ZX</p>")
+        assert found is False
+
+    def test_knowledge_base_red_flag_gstin_rejected(self):
+        found, number = _check_gst_display("<p>GSTIN: 00AAAAA0000A0Z0</p>")
+        assert found is False
+
+    def test_real_gstin_wins_over_placeholder(self):
+        html = "<p>GSTIN: 27XXXXX1234X1ZX</p><footer>GSTIN: 29ABCDE1234F1Z5</footer>"
+        found, number = _check_gst_display(html)
+        assert found is True
+        assert number == "29ABCDE1234F1Z5"
+
 
 class TestBusinessCategoryDetection:
     def test_ecommerce_detected(self):

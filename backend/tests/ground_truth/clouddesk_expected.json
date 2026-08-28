@@ -1,26 +1,32 @@
 {
   "site": "clouddesk-saas",
+  "served_on": "http://127.0.0.1:4003",
   "kyc_input": {
     "pan_name": "CloudDesk Solutions Private Limited",
     "gst_name": "CLOUDDESK SOLUTIONS PRIVATE LIMITED",
     "bank_name": "CloudDesk Solutions Private Limited"
   },
-  "expected_score_range": [35, 60],
+  "expected_score_range": [50, 68],
   "expected_grade": "C",
   "compliance_expected": {
-    "refund_policy": {"found": true, "quality_score_max": 4},
-    "privacy_policy": {"found": true, "quality_score_max": 5},
+    "refund_policy": {"found": true, "quality_score_max": 6},
+    "privacy_policy": {"found": true, "quality_score_max": 6},
     "terms_conditions": {"found": false},
-    "contact_info": {"found": true},
+    "contact_info": {"found": true, "quality_score_min": 4},
     "gst_display": {"found": false}
   },
   "pci_expected": {
+    "total_scripts_max": 10,
+    "third_party_scripts_max": 5,
+    "scripts_without_sri_min": 2,
     "csp_present": false,
-    "hsts_present": false
+    "hsts_present": false,
+    "referrer_policy_present": false
   },
   "kyc_expected": {
-    "overall_consistent": true
+    "overall_consistent": true,
+    "issues_max_count": 0
   },
-  "critical_gaps_min": 2,
-  "notes": "Grade C test site — thin policies, missing T&C and GST"
+  "critical_gaps_min": 3,
+  "notes": "Grade C — KYC is clean, but the refund and privacy pages are 40-60 word stubs that must score as inadequate rather than missing, T&C is absent and no GSTIN is displayed."
 }

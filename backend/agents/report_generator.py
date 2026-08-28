@@ -28,6 +28,25 @@ def _score_to_grade(score: int) -> str:
     return "F"
 
 
+def _kyc_score(kyc) -> int:
+    """Score on how many of the three document pairs agree.
+
+    Fuzzy similarity alone is useless here: 'FreshKart Pvt. Ltd.' and 'Fresh Kart Private
+    Limited' are 0.98 similar but are a genuine onboarding blocker, so a name mismatch has to
+    cost the merchant real points.
+    """
+    if kyc is None:
+        return 0
+    if kyc.overall_consistent:
+        return 100
+
+    pairs = [kyc.pan_gst_match, kyc.gst_bank_match, kyc.pan_bank_match]
+    matching = sum(1 for p in pairs if p.match)
+    # Partial credit for how close the failing pairs are, capped below a clean pass
+    closeness = sum(p.similarity for p in pairs if not p.match) / len(pairs)
+    return min(90, int((matching / len(pairs)) * 100 + closeness * 10))
+
+
 def _integration_score(integration) -> int:
     """Readiness to integrate. A live test order is a bonus, not a gate — a merchant is not
     penalised because the operator has no Razorpay keys configured."""
@@ -134,9 +153,7 @@ async def run(state: EngineState) -> dict:
     try:
         # Gather component scores
         rbi_score = state.compliance_result.overall_score if state.compliance_result else 0
-        kyc_score = 100 if (state.kyc_result and state.kyc_result.overall_consistent) else (
-            int(state.kyc_result.confidence * 100) if state.kyc_result else 0
-        )
+        kyc_score = _kyc_score(state.kyc_result)
         pci_score = state.pci_result.security_score if state.pci_result else 0
         integration_score = _integration_score(state.integration_result)
 

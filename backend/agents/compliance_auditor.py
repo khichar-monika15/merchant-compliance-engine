@@ -26,6 +26,14 @@ def _load_rbi_db() -> dict:
         return json.load(f)
 
 
+def _rbi_red_flag_gstins() -> set[str]:
+    check = next((c for c in _load_rbi_db()["checks"] if c["id"] == "RBI-005"), {})
+    return set(check.get("quality_criteria", {}).get("red_flags", []))
+
+
+_RBI_RED_FLAG_GSTINS = _rbi_red_flag_gstins()
+
+
 def _html_to_text(html: str) -> str:
     """Strip HTML tags and decode entities for plain-text keyword matching."""
     from bs4 import BeautifulSoup
@@ -34,25 +42,31 @@ def _html_to_text(html: str) -> str:
     return re.sub(r"\s*&\s*", " and ", text)
 
 
-def _search_page_for_policy(html: str, check: dict) -> tuple[bool, int]:
-    """Rule-based: search for policy presence and estimate quality score."""
+def _policy_quality(html: str, check: dict) -> int:
+    """Rule-based quality score 1-10 for a page already known to be the policy page."""
     text = _html_to_text(html)
+    lowered = text.lower()
     body_keywords = check["search"].get("body_keywords", [])
-    found_keywords = sum(1 for kw in body_keywords if kw.lower() in text.lower())
-    found = found_keywords >= 2
+    found_keywords = sum(1 for kw in body_keywords if kw.lower() in lowered)
 
-    if not found:
+    criteria = check.get("quality_criteria", {})
+    if any(rf.lower() in lowered for rf in criteria.get("red_flags", [])):
+        return 2  # present but placeholder/template
+
+    coverage = (found_keywords / max(len(body_keywords), 1)) * 8
+    depth = 2 if len(text.split()) > criteria.get("min_word_count", 100) else 0
+    return min(10, max(1, int(coverage + depth)))
+
+
+def _search_page_for_policy(html: str, check: dict) -> tuple[bool, int]:
+    """Discovery heuristic: does this page look like the policy, and how good is it?"""
+    text = _html_to_text(html).lower()
+    body_keywords = check["search"].get("body_keywords", [])
+    found_keywords = sum(1 for kw in body_keywords if kw.lower() in text)
+
+    if found_keywords < 2:
         return False, 0
-
-    word_count = len(text.split())
-    min_words = check.get("quality_criteria", {}).get("min_word_count", 100)
-    red_flags = check.get("quality_criteria", {}).get("red_flags", [])
-
-    if any(rf.lower() in text.lower() for rf in red_flags):
-        return True, 2  # Present but placeholder/template
-
-    quality = min(10, max(2, int((found_keywords / max(len(body_keywords), 1)) * 8 + (2 if word_count > min_words else 0))))
-    return True, quality
+    return True, _policy_quality(html, check)
 
 
 def _check_contact_page(html: str) -> tuple[bool, list[str]]:
@@ -74,10 +88,23 @@ def _check_contact_page(html: str) -> tuple[bool, list[str]]:
     return found, issues
 
 
+_HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+
+
+def _is_placeholder_gstin(gstin: str) -> bool:
+    """Reject dummy GSTINs — the knowledge base red flags plus repeated-character fillers."""
+    if gstin in _RBI_RED_FLAG_GSTINS:
+        return True
+    letters = gstin[2:7]
+    return len(set(letters)) == 1
+
+
 def _check_gst_display(all_html: str) -> tuple[bool, str | None]:
-    match = _GST_PATTERN.search(all_html)
-    if match:
-        return True, match.group(0)
+    """A GSTIN must be displayed to the customer, so commented-out markup does not count."""
+    visible = _HTML_COMMENT.sub(" ", all_html)
+    for match in _GST_PATTERN.finditer(visible):
+        if not _is_placeholder_gstin(match.group(0)):
+            return True, match.group(0)
     return False, None
 
 
@@ -138,19 +165,22 @@ async def run(state: EngineState) -> dict:
             if not check_def:
                 return ComplianceCheck(name=policy_type, check_id=check_id)
 
+            # The crawler already matched this URL by path or link text, so the page exists —
+            # only its quality is in question. A 40-word stub is "inadequate", not "missing".
             page_url = identified.get(policy_type.lower().replace(" ", "_"))
             page_html = pages.get(page_url, "") if page_url else ""
+            found = bool(page_html)
+            quality_score = _policy_quality(page_html, check_def) if found else 0
 
-            # Fall back to searching all pages if not identified
-            if not page_html:
+            # Otherwise look for the policy inline on some other page
+            if not found:
                 for url, html in pages.items():
-                    found, _ = _search_page_for_policy(html, check_def)
-                    if found:
-                        page_url = url
-                        page_html = html
+                    matched, score = _search_page_for_policy(html, check_def)
+                    if matched:
+                        page_url, page_html, found, quality_score = url, html, True, score
                         break
 
-            if not page_html:
+            if not found:
                 return ComplianceCheck(
                     name=check_def["name"],
                     check_id=check_id,
@@ -158,9 +188,6 @@ async def run(state: EngineState) -> dict:
                     severity=Severity(check_def["severity"]),
                     issues=[f"{check_def['name']} not found on the website"],
                 )
-
-            # Rule-based presence detection
-            found, quality_score = _search_page_for_policy(page_html, check_def)
 
             # LLM semantic quality scoring, falling back to the rule-based score above
             details = ""

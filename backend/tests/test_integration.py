@@ -1,8 +1,13 @@
 import pytest
 
 from backend.agents.integration_advisor import _pick_primary_stack
-from backend.agents.report_generator import _estimate_fix_time, _integration_score, _score_to_grade
-from backend.models.schemas import IntegrationResult
+from backend.agents.report_generator import (
+    _estimate_fix_time,
+    _integration_score,
+    _kyc_score,
+    _score_to_grade,
+)
+from backend.models.schemas import IntegrationResult, KYCMatch, KYCResult
 
 
 class TestPrimaryStackSelection:
@@ -71,3 +76,30 @@ class TestIntegrationScore:
         """RBI 100, KYC 100, PCI 100, integration 70 must still reach grade A."""
         overall = int(100 * 0.40 + 100 * 0.25 + 100 * 0.20 + 70 * 0.15)
         assert _score_to_grade(overall) == "A"
+
+
+class TestKYCScore:
+    @staticmethod
+    def _result(matches: list[bool], similarity: float = 0.98) -> KYCResult:
+        pairs = [KYCMatch(match=m, similarity=1.0 if m else similarity) for m in matches]
+        return KYCResult(
+            pan_gst_match=pairs[0], gst_bank_match=pairs[1], pan_bank_match=pairs[2],
+            overall_consistent=all(matches), confidence=min(p.similarity for p in pairs),
+        )
+
+    def test_none(self):
+        assert _kyc_score(None) == 0
+
+    def test_all_pairs_match(self):
+        assert _kyc_score(self._result([True, True, True])) == 100
+
+    def test_high_similarity_mismatch_is_still_penalised(self):
+        """0.98-similar names are a real onboarding blocker, not a 2-point deduction."""
+        assert _kyc_score(self._result([False, False, False])) < 20
+
+    def test_partial_match_scores_between(self):
+        score = _kyc_score(self._result([True, True, False]))
+        assert 60 < score < 90
+
+    def test_never_reaches_a_clean_pass(self):
+        assert _kyc_score(self._result([True, True, False], similarity=1.0)) <= 90
