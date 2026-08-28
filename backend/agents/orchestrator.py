@@ -115,8 +115,10 @@ async def _generate_report(state: dict) -> dict:
 
 
 def _route_after_crawl(state: dict) -> str:
-    """Skip parallel analysis only if a fatal crawl error occurred AND no URL was reachable."""
-    if state.get("current_phase") == "error":
+    """Skip parallel analysis only when crawl failed entirely (no pages retrieved)."""
+    crawl = state.get("crawl_result")
+    crawl_pages = (crawl or {}).get("pages_found", {}) if isinstance(crawl, dict) else {}
+    if state.get("current_phase") in ("error", "crawl_failed") and not crawl_pages:
         return "generate_report"
     return "parallel_analysis"
 

@@ -23,13 +23,25 @@ uv run playwright install chromium
 
 # 2. Configure
 cp .env.example .env
-# Add ANTHROPIC_API_KEY, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET
+# LLM — choose one:
+#   Option A (AWS Bedrock mantle, default)
+#     OPENAI_API_KEY=<bearer token>
+#     OPENAI_BASE_URL=https://bedrock-mantle.us-east-1.api.aws/v1
+#     LLM_MODEL=qwen.qwen3-32b
+#   Option B (Anthropic direct)
+#     ANTHROPIC_API_KEY=<api key>
+# Payment (test keys)
+#   RAZORPAY_KEY_ID=rzp_test_...
+#   RAZORPAY_KEY_SECRET=...
 
 # 3. Run backend
 uv run uvicorn backend.main:app --reload --port 8000
 
 # 4. Run frontend
 cd frontend && npm install && npm run dev
+
+# 5. Run tests
+uv run pytest backend/tests/ -v
 ```
 
 ## Architecture
@@ -55,6 +67,21 @@ Four synthetic merchant sites with planted compliance gaps for repeatable demos:
 
 ## Tech stack
 
-- **Backend**: Python 3.12, FastAPI, LangGraph, Claude API, Playwright, SQLite
-- **Frontend**: React 18, TypeScript, Tailwind CSS, Vite
+- **Backend**: Python 3.12, FastAPI, LangGraph 0.2.60, Playwright, SQLite (aiosqlite)
+- **LLM**: AWS Bedrock mantle (OpenAI-compat endpoint) or Anthropic direct API
+- **Frontend**: React 18, TypeScript, Tailwind CSS, Vite, Recharts
 - **Payment**: Razorpay Python SDK (test mode)
+
+## Running the demo locally
+
+```bash
+# Serve test sites (needs 4 terminals or background processes)
+npx serve test-sites/artisan-weaves -p 4001
+npx serve test-sites/freshkart-india -p 4002
+npx serve test-sites/clouddesk-saas -p 4003
+npx serve test-sites/quickbites-delivery -p 4004
+
+# Submit via frontend at http://localhost:5173
+# or run the e2e script directly
+uv run python backend/tests/e2e_artisan.py
+```

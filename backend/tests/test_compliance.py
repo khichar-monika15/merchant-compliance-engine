@@ -1,6 +1,12 @@
 import pytest
 
-from backend.agents.compliance_auditor import _check_contact_page, _check_gst_display, _detect_business_category
+from backend.agents.compliance_auditor import (
+    _check_contact_page,
+    _check_gst_display,
+    _detect_business_category,
+    _html_to_text,
+    _search_page_for_policy,
+)
 
 
 class TestContactPageChecker:
@@ -66,3 +72,90 @@ class TestBusinessCategoryDetection:
         html = "<h1>Order food online</h1><p>Browse our restaurant menu</p>"
         result = _detect_business_category(html, {})
         assert result == "food_delivery"
+
+
+class TestHtmlToText:
+    def test_strips_html_tags(self):
+        html = "<h1>Hello <strong>World</strong></h1>"
+        result = _html_to_text(html)
+        assert "<" not in result
+        assert "Hello" in result
+        assert "World" in result
+
+    def test_decodes_entities(self):
+        html = "<p>Terms &amp; Conditions apply</p>"
+        result = _html_to_text(html)
+        assert "&amp;" not in result
+        assert "Terms and Conditions" in result
+
+    def test_ampersand_normalised_to_and(self):
+        html = "<h1>Terms &amp; Conditions</h1>"
+        result = _html_to_text(html)
+        assert "terms and conditions" in result.lower()
+
+
+_TERMS_CHECK = {
+    "search": {
+        "body_keywords": [
+            "terms of service",
+            "terms and conditions",
+            "user agreement",
+            "governing law",
+            "dispute resolution",
+        ]
+    },
+    "quality_criteria": {"min_word_count": 300, "red_flags": ["lorem ipsum"]},
+}
+
+_REFUND_CHECK = {
+    "search": {
+        "body_keywords": [
+            "refund",
+            "return",
+            "cancellation",
+            "eligible",
+            "processing time",
+        ]
+    },
+    "quality_criteria": {"min_word_count": 200, "red_flags": ["lorem ipsum"]},
+}
+
+
+class TestSearchPageForPolicy:
+    def test_plain_text_match(self):
+        html = "<p>Governing law of India. User agreement terms and conditions apply.</p>"
+        found, score = _search_page_for_policy(html, _TERMS_CHECK)
+        assert found is True
+        assert score > 0
+
+    def test_html_entity_match(self):
+        # "Terms &amp; Conditions" should match "terms and conditions" after entity decode
+        html = """
+        <h1>Terms &amp; Conditions</h1>
+        <p>These terms and conditions govern your use. Governing law of India.</p>
+        <p>Dispute resolution: contact us first before legal action.</p>
+        """
+        found, score = _search_page_for_policy(html, _TERMS_CHECK)
+        assert found is True
+
+    def test_insufficient_keywords_returns_false(self):
+        html = "<p>Welcome to our shop. We sell handloom goods.</p>"
+        found, score = _search_page_for_policy(html, _TERMS_CHECK)
+        assert found is False
+        assert score == 0
+
+    def test_red_flag_caps_score(self):
+        html = "<p>Refund policy. Return eligible. Cancellation. Lorem ipsum filler.</p>"
+        found, score = _search_page_for_policy(html, _REFUND_CHECK)
+        assert found is True
+        assert score == 2  # red flag detected
+
+    def test_refund_policy_detected(self):
+        html = """
+        <h2>Refund Policy</h2>
+        <p>We offer full refunds for eligible returns within 7 days of purchase.
+        Cancellation requests must be made within 24 hours. Processing time is 5 business days.</p>
+        """
+        found, score = _search_page_for_policy(html, _REFUND_CHECK)
+        assert found is True
+        assert score >= 3

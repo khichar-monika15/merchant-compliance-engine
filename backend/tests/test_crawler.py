@@ -68,3 +68,16 @@ class TestTechStackDetection:
         html = "<html><body><h1>Hello World</h1></body></html>"
         result = _detect_tech_stack(html, {}, [])
         assert "static_html" in result
+
+
+class TestPolicyURLClassificationWithExtensions:
+    @pytest.mark.parametrize("url,expected", [
+        ("https://example.com/terms.html", "terms"),
+        ("https://example.com/privacy.html", "privacy"),
+        ("https://example.com/refund.html", "refund"),
+        ("https://example.com/contact.html", "contact"),
+        ("https://example.com/terms.php", "terms"),
+        ("https://example.com/about.html", None),
+    ])
+    def test_html_extension_stripped(self, url, expected):
+        assert _classify_url_as_policy(url) == expected
