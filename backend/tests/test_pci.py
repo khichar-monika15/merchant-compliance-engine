@@ -1,7 +1,16 @@
 import pytest
 
+from backend.agents.pci_scanner import _score_headers, _score_scripts
 from backend.tools.csp_parser import analyze_security_headers, grade_csp, parse_csp
-from backend.tools.script_analyzer import check_sri, extract_scripts, score_script_risk
+from backend.tools.script_analyzer import extract_scripts, score_script_risk
+
+_PERFECT_HEADERS = {
+    "content-security-policy": "default-src 'none'; script-src 'self'; object-src 'none'",
+    "strict-transport-security": "max-age=31536000; includeSubDomains",
+    "x-frame-options": "DENY",
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "strict-origin-when-cross-origin",
+}
 
 
 class TestCSPParser:
@@ -95,3 +104,40 @@ class TestScriptAnalyzer:
         risk_db = {"low_risk": [], "medium_risk": [{"domains": ["hotjar.com"], "category": "analytics"}], "high_risk_indicators": []}
         result = score_script_risk("static.hotjar.com", risk_db)
         assert result["risk_level"] == "medium"
+
+
+class TestPCIScoring:
+    """PCI-001/002 score out of 50 (scripts), PCI-004/005 out of 50 (headers) — 100 total."""
+
+    def test_perfect_site_scores_100(self):
+        header_score, header_issues = _score_headers(analyze_security_headers(_PERFECT_HEADERS))
+        script_score, script_issues = _score_scripts(third_party_count=0, without_sri=0)
+        assert header_score + script_score == 100
+        assert header_issues == []
+        assert script_issues == []
+
+    def test_missing_referrer_policy_costs_6(self):
+        headers = {k: v for k, v in _PERFECT_HEADERS.items() if k != "referrer-policy"}
+        score, issues = _score_headers(analyze_security_headers(headers))
+        assert score == 44
+        assert any("Referrer-Policy" in i for i in issues)
+
+    def test_missing_csp_costs_20(self):
+        headers = {k: v for k, v in _PERFECT_HEADERS.items() if k != "content-security-policy"}
+        score, issues = _score_headers(analyze_security_headers(headers))
+        assert score == 30
+        assert any("CSP" in i for i in issues)
+
+    def test_no_headers_at_all(self):
+        score, issues = _score_headers(analyze_security_headers({}))
+        assert score == 5  # 50 - 20 CSP - 7 HSTS - 6 XFO - 6 XCTO - 6 RP
+        assert len(issues) == 5
+
+    def test_scripts_without_sri_deducted_per_script(self):
+        score, issues = _score_scripts(third_party_count=4, without_sri=4)
+        assert score == 38  # 50 - (3 * 4)
+        assert any("SRI" in i for i in issues)
+
+    def test_script_deduction_is_capped(self):
+        score, _ = _score_scripts(third_party_count=30, without_sri=30)
+        assert score == 10  # 50 - 15 (count) - 25 (SRI cap)

@@ -28,6 +28,17 @@ def _score_to_grade(score: int) -> str:
     return "F"
 
 
+def _integration_score(integration) -> int:
+    """Readiness to integrate. A live test order is a bonus, not a gate — a merchant is not
+    penalised because the operator has no Razorpay keys configured."""
+    if integration is None:
+        return 0
+    score = 70 if (integration.detected_stack and integration.starter_code) else 40
+    if integration.test_payment_result.get("success"):
+        score += 30
+    return min(100, score)
+
+
 def _estimate_fix_time(critical: int, warnings: int) -> str:
     if critical == 0 and warnings == 0:
         return "No fixes needed — ready for Razorpay onboarding"
@@ -85,8 +96,9 @@ def _pci_gaps(pci) -> tuple[list[GapItem], list[GapItem], list[GapItem]]:
     if pci is None:
         return critical, warnings, info
 
+    # Severity follows the knowledge base: PCI-001/002/004 are critical, PCI-005 (header suite) is a warning
     for issue in pci.critical_issues:
-        sev = Severity.CRITICAL if any(kw in issue.lower() for kw in ["csp", "sri", "missing", "violation"]) else Severity.WARNING
+        sev = Severity.CRITICAL if any(kw in issue.lower() for kw in ["csp", "sri", "6.4.3"]) else Severity.WARNING
         gap = GapItem(
             title=f"PCI: {issue[:80]}",
             description=issue,
@@ -126,7 +138,7 @@ async def run(state: EngineState) -> dict:
             int(state.kyc_result.confidence * 100) if state.kyc_result else 0
         )
         pci_score = state.pci_result.security_score if state.pci_result else 0
-        integration_score = 80 if (state.integration_result and state.integration_result.test_payment_result.get("success")) else 40
+        integration_score = _integration_score(state.integration_result)
 
         # Weighted score
         overall = int(

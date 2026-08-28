@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from backend.models.schemas import AuditLogEntry, EngineState, PCIResult, ScriptInfo
+from backend.models.schemas import AuditLogEntry, EngineState, PCIResult
 from backend.tools.csp_parser import analyze_security_headers
 
 _PCI_DB_PATH = Path(__file__).parent.parent / "knowledge" / "pci_dss_surface_checks.json"
@@ -15,59 +16,74 @@ def _load_pci_db() -> dict:
         return json.load(f)
 
 
+_PCI_DB = _load_pci_db()
+
+
+def _check(check_id: str) -> dict:
+    return next(c for c in _PCI_DB["checks"] if c["id"] == check_id)
+
+
+_SCRIPT_INVENTORY = _check("PCI-001")
+_SRI = _check("PCI-002")["scoring"]
+_CSP = _check("PCI-004")["scoring"]
+_HEADER_SUITE = _check("PCI-005")["scoring"]
+
+_HEADER_POINTS = {h["name"]: h["points"] for h in _HEADER_SUITE["headers"]}
+
+# PCI-001 deducts by third-party script count; the thresholds live in the condition strings
+_SCRIPT_COUNT_TIERS: list[tuple[int, int, str]] = []
+for _d in _SCRIPT_INVENTORY["scoring"]["deductions"]:
+    _m = re.fullmatch(r"third_party_scripts > (\d+)", _d["condition"])
+    if _m:
+        _SCRIPT_COUNT_TIERS.append((int(_m.group(1)), _d["points"], _d["reason"]))
+_SCRIPT_COUNT_TIERS.sort(reverse=True)
+
+
 def _score_headers(security_analysis: dict) -> tuple[int, list[str]]:
-    """Score security headers out of 25, return (score, critical_issues)."""
-    score = 25
+    """Score CSP (PCI-004) and the security header suite (PCI-005) out of 50."""
+    score = _CSP["max_points"] + _HEADER_SUITE["max_points"]
     issues: list[str] = []
 
     csp = security_analysis.get("csp", {})
     if not csp.get("present"):
-        score -= 20
+        score -= _CSP["no_csp_deduction"]
         issues.append("CSP header missing (PCI 11.6.1)")
     elif csp.get("strength") == "weak":
-        score -= 10
+        score -= _CSP["weak_csp_deduction"]
         issues.append("CSP is present but weak")
     elif csp.get("strength") == "moderate":
-        score -= 5
+        score -= _CSP["moderate_csp_deduction"]
 
-    hsts = security_analysis.get("hsts", {})
-    if not hsts.get("present"):
-        score -= 7
-        issues.append("HSTS missing — HTTPS not enforced")
-
-    xfo = security_analysis.get("x_frame_options", {})
-    if not xfo.get("present"):
-        score -= 6
-        issues.append("X-Frame-Options missing — clickjacking risk")
-
-    xcto = security_analysis.get("x_content_type", {})
-    if not xcto.get("present"):
-        score -= 6
-        issues.append("X-Content-Type-Options: nosniff missing")
-
-    rp = security_analysis.get("referrer_policy", {})
-    if not rp.get("present"):
-        score -= 6
-        issues.append("Referrer-Policy missing")
+    suite = [
+        ("hsts", "Strict-Transport-Security", "HSTS missing — HTTPS not enforced"),
+        ("x_frame_options", "X-Frame-Options", "X-Frame-Options missing — clickjacking risk"),
+        ("x_content_type", "X-Content-Type-Options", "X-Content-Type-Options: nosniff missing"),
+        ("referrer_policy", "Referrer-Policy", "Referrer-Policy missing"),
+    ]
+    for key, header_name, message in suite:
+        if not security_analysis.get(key, {}).get("present"):
+            score -= _HEADER_POINTS[header_name]
+            issues.append(message)
 
     return max(0, score), issues
 
 
 def _score_scripts(third_party_count: int, without_sri: int) -> tuple[int, list[str]]:
-    """Score script inventory out of 50, return (score, issues)."""
-    score = 50
+    """Score script inventory (PCI-001) and SRI coverage (PCI-002) out of 50."""
+    score = _SCRIPT_INVENTORY["scoring"]["max_points"] + _SRI["max_points"]
     issues: list[str] = []
 
-    if third_party_count > 20:
-        score -= 15
-        issues.append(f"{third_party_count} third-party scripts loaded — very high risk surface area")
-    elif third_party_count > 10:
-        score -= 10
-        issues.append(f"{third_party_count} third-party scripts loaded (PCI 6.4.3 requires justification for each)")
+    for threshold, points, reason in _SCRIPT_COUNT_TIERS:
+        if third_party_count > threshold:
+            score -= points
+            issues.append(
+                f"{third_party_count} third-party scripts loaded — {reason} "
+                f"(PCI {_SCRIPT_INVENTORY['requirement']})"
+            )
+            break
 
-    per_script = min(3 * without_sri, 25)
-    score -= per_script
     if without_sri > 0:
+        score -= min(_SRI["per_script_without_sri_deduction"] * without_sri, _SRI["max_deduction"])
         issues.append(f"{without_sri} third-party scripts lack SRI (PCI 6.4.3 integrity violation risk)")
 
     return max(0, score), issues
