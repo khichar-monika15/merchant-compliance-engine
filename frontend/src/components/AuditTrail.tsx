@@ -35,7 +35,7 @@ export function AuditTrail({ log }: Props) {
               <span className="text-gray-400 text-xs mt-0.5 whitespace-nowrap w-20 flex-shrink-0">{formatTime(entry.timestamp)}</span>
               <span className={`text-xs px-1.5 py-0.5 rounded flex-shrink-0 ${agentColor[entry.agent] ?? 'bg-gray-100 text-gray-600'}`}>{entry.agent}</span>
               <span className="text-gray-600 flex-1">{entry.action}{entry.result ? ` — ${entry.result}` : ''}</span>
-              {entry.duration_ms && <span className="text-gray-400 text-xs flex-shrink-0">{entry.duration_ms}ms</span>}
+              {entry.duration_ms != null && <span className="text-gray-400 text-xs flex-shrink-0">{entry.duration_ms}ms</span>}
             </div>
           ))}
         </div>

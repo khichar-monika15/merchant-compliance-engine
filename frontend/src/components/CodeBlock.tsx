@@ -29,10 +29,14 @@ export function CodeBlock({ integration }: Props) {
   const lang = LANG_MAP[integration.starter_code_language] ?? 'javascript'
 
   const copy = () => {
-    navigator.clipboard.writeText(integration.starter_code).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
+    if (!navigator.clipboard) return
+    navigator.clipboard.writeText(integration.starter_code).then(
+      () => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      },
+      () => setCopied(false),
+    )
   }
 
   // detected_stack is Record<string, string[]> — show framework names
