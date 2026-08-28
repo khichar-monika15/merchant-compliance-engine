@@ -5,7 +5,6 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from backend.config import get_settings
 from backend.tools.llm_client import llm_complete
 from backend.models.schemas import (
     AuditLogEntry,
@@ -115,7 +114,6 @@ Respond in JSON only:
 
 async def run(state: EngineState) -> dict:
     t0 = datetime.now(timezone.utc)
-    settings = get_settings()
 
     try:
         rbi_db = _load_rbi_db()

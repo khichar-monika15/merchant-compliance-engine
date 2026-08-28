@@ -62,8 +62,10 @@ def _get_base_domain(url: str) -> str:
 
 def _classify_url_as_policy(url: str) -> str | None:
     path = urlparse(url).path.lower().rstrip("/")
+    # Strip common page extensions so /terms.html matches /terms
+    path_noext = path.removesuffix(".html").removesuffix(".php").removesuffix(".aspx")
     for ptype, patterns in POLICY_URL_PATTERNS.items():
-        if any(path == p or path.endswith(p) for p in patterns):
+        if any(path == p or path.endswith(p) or path_noext == p or path_noext.endswith(p) for p in patterns):
             return ptype
     return None
 

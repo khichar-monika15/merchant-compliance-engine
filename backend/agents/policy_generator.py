@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-from backend.config import get_settings
 from backend.tools.llm_client import llm_complete
 from backend.models.schemas import (
     AuditLogEntry,
@@ -68,7 +67,6 @@ Generate a complete, professional {policy_type} policy in Markdown. Replace all 
 
 async def run(state: EngineState) -> dict:
     t0 = datetime.now(timezone.utc)
-    settings = get_settings()
 
     try:
         compliance = state.compliance_result
