@@ -9,26 +9,32 @@ export function PolicyViewer({ policyGen }: Props) {
   const [activeTab, setActiveTab] = useState(0)
   const [copied, setCopied] = useState(false)
 
-  if (policyGen.generated_policies.length === 0) {
+  const policies = policyGen.generated_policies
+  if (policies.length === 0) {
     return null
   }
 
-  const active = policyGen.generated_policies[activeTab]
+  // A later scan can return fewer policies than the tab index left over from the previous one
+  const active = policies[Math.min(activeTab, policies.length - 1)]
 
   const copy = () => {
-    navigator.clipboard.writeText(active.content).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
+    if (!navigator.clipboard) return
+    navigator.clipboard.writeText(active.content).then(
+      () => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      },
+      () => setCopied(false),
+    )
   }
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6">
       <h2 className="text-lg font-semibold mb-4">Generated Policies</h2>
       <div className="flex gap-2 mb-4 flex-wrap">
-        {policyGen.generated_policies.map((p, i) => (
+        {policies.map((p, i) => (
           <button
-            key={i}
+            key={p.policy_type}
             onClick={() => setActiveTab(i)}
             className={`text-sm px-3 py-1.5 rounded-lg border transition-colors ${activeTab === i ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
           >

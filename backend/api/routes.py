@@ -41,12 +41,15 @@ async def _run_scan_job(job_id: str, merchant_input: MerchantInput) -> None:
     """Background task: run the pipeline and store result."""
     _jobs[job_id]["status"] = "running"
 
-    async def progress_callback(agent: str, message: str, pct: int, event_type: str = "progress"):
+    async def progress_callback(
+        agent: str, message: str, pct: int, event_type: str = "progress", done: bool = False
+    ):
         await broadcast_progress(job_id, {
             "type": event_type,
             "agent": agent,
             "message": message,
             "progress": pct,
+            "done": done,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         })
 

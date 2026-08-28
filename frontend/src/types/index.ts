@@ -156,5 +156,6 @@ export type ProgressEvent = {
   agent?: string
   message?: string
   progress?: number
+  done?: boolean
   timestamp?: string
 }

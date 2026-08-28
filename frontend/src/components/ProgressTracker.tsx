@@ -8,11 +8,16 @@ interface Props {
 }
 
 function agentStatus(agent: string, progress: ProgressEvent[]): 'pending' | 'running' | 'done' | 'error' {
-  const events = progress.filter((e) => e.agent === agent || e.message?.includes(agent))
+  const events = progress.filter((e) => e.agent === agent)
   if (events.some((e) => e.type === 'error')) return 'error'
-  if (events.some((e) => e.type === 'complete' || e.message?.toLowerCase().includes('complete'))) return 'done'
+  if (events.some((e) => e.done)) return 'done'
   if (events.length > 0) return 'running'
   return 'pending'
+}
+
+function overallPercent(progress: ProgressEvent[]): number {
+  const reported = progress.map((e) => e.progress ?? 0).filter((p) => p >= 0)
+  return reported.length ? Math.min(100, Math.max(...reported)) : 0
 }
 
 const statusDot: Record<string, string> = {
@@ -23,6 +28,8 @@ const statusDot: Record<string, string> = {
 }
 
 export function ProgressTracker({ progress, status }: Props) {
+  const messages = progress.filter((e) => e.message)
+
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Agent Progress</h3>
@@ -39,14 +46,14 @@ export function ProgressTracker({ progress, status }: Props) {
       {status === 'running' && (
         <div className="mt-4">
           <div className="h-1 bg-gray-200 rounded-full overflow-hidden">
-            <div className="h-full bg-blue-500 rounded-full animate-pulse" style={{ width: `${Math.min(100, (progress.length / AGENTS.length) * 100)}%` }} />
+            <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${overallPercent(progress)}%` }} />
           </div>
         </div>
       )}
-      {progress.length > 0 && (
+      {messages.length > 0 && (
         <div className="mt-3 max-h-48 overflow-y-auto space-y-1">
-          {progress.slice(-10).map((e, i) => (
-            <p key={i} className="text-xs text-gray-500 font-mono">{e.message}</p>
+          {messages.slice(-10).map((e, i) => (
+            <p key={`${e.timestamp ?? i}-${e.agent ?? ''}`} className="text-xs text-gray-500 font-mono">{e.message}</p>
           ))}
         </div>
       )}

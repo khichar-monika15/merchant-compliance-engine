@@ -157,14 +157,14 @@ def _serialise(update: dict) -> dict:
 def build_workflow(progress_fn=None):
     """Build and compile the LangGraph StateGraph for the MCIE pipeline."""
 
-    async def _emit(agent: str, message: str, pct: int) -> None:
+    async def _emit(agent: str, message: str, pct: int, done: bool = False) -> None:
         if progress_fn:
-            await progress_fn(agent, message, pct)
+            await progress_fn(agent, message, pct, done=done)
 
     async def _crawl_node(state: dict) -> dict:
         await _emit("WebCrawler", "Crawling merchant website", 15)
         result = await _crawl(state)
-        await _emit("WebCrawler", "Website crawl complete", 30)
+        await _emit("WebCrawler", "Website crawl complete", 30, done=True)
         return result
 
     async def _parallel_node(state: dict) -> dict:
@@ -173,19 +173,24 @@ def build_workflow(progress_fn=None):
         await _emit("KYCValidator", "Validating KYC name consistency", 40)
         await _emit("IntegrationAdvisor", "Detecting tech stack", 40)
         result = await _parallel_analysis(state)
-        await _emit("ComplianceAuditor", "Compliance audit complete", 65)
+        await _emit("ComplianceAuditor", "Compliance audit complete", 60, done=True)
+        await _emit("PCIScanner", "PCI DSS scan complete", 62, done=True)
+        await _emit("KYCValidator", "KYC validation complete", 64, done=True)
+        await _emit("IntegrationAdvisor", "Integration advisory complete", 65, done=True)
         return result
 
     async def _policies_node(state: dict) -> dict:
         await _emit("PolicyGenerator", "Generating missing policies", 75)
         result = await _generate_policies(state)
-        await _emit("PolicyGenerator", "Policy generation complete", 85)
+        await _emit("PolicyGenerator", "Policy generation complete", 85, done=True)
         return result
 
     async def _report_node(state: dict) -> dict:
+        if not state.get("policy_gen_result"):
+            await _emit("PolicyGenerator", "No policy gaps — generation skipped", 88, done=True)
         await _emit("ReportGenerator", "Generating readiness report", 90)
         result = await _generate_report(state)
-        await _emit("ReportGenerator", "Report generation complete", 98)
+        await _emit("ReportGenerator", "Report generation complete", 98, done=True)
         return result
 
     workflow = StateGraph(dict)
