@@ -1,5 +1,3 @@
-import pytest
-
 from backend.agents.compliance_auditor import (
     _check_contact_page,
     _check_gst_display,
@@ -61,17 +59,17 @@ class TestGSTDisplay:
 class TestBusinessCategoryDetection:
     def test_ecommerce_detected(self):
         html = "<button>Add to Cart</button><a href='/checkout'>Buy Now</a>"
-        result = _detect_business_category(html, {})
+        result = _detect_business_category(html)
         assert result == "ecommerce"
 
     def test_saas_detected(self):
         html = "<p>Start free trial</p><p>$9 per month</p><a href='/pricing'>Pricing Plans</a>"
-        result = _detect_business_category(html, {})
+        result = _detect_business_category(html)
         assert result == "saas"
 
     def test_food_delivery_detected(self):
         html = "<h1>Order food online</h1><p>Browse our restaurant menu</p>"
-        result = _detect_business_category(html, {})
+        result = _detect_business_category(html)
         assert result == "food_delivery"
 
 

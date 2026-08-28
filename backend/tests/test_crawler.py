@@ -1,8 +1,6 @@
 import pytest
 
 from backend.tools.crawler_tools import (
-    POLICY_LINK_TEXT_PATTERNS,
-    POLICY_URL_PATTERNS,
     _classify_link_text,
     _classify_url_as_policy,
     _detect_tech_stack,

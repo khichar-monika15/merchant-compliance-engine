@@ -4,14 +4,10 @@ import pytest
 from pydantic import HttpUrl
 
 from backend.models.schemas import (
-    ComplianceCheck,
-    ComplianceResult,
     CrawlResult,
     EngineState,
     MerchantInput,
-    PCIResult,
     ScriptInfo,
-    Severity,
 )
 
 

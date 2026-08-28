@@ -1,5 +1,4 @@
-import pytest
-
+from backend.agents import kyc_validator, pci_scanner
 from backend.agents.pci_scanner import _score_headers, _score_scripts
 from backend.tools.csp_parser import analyze_security_headers, grade_csp, parse_csp
 from backend.tools.script_analyzer import extract_scripts, score_script_risk
@@ -141,3 +140,32 @@ class TestPCIScoring:
     def test_script_deduction_is_capped(self):
         score, _ = _score_scripts(third_party_count=30, without_sri=30)
         assert score == 10  # 50 - 15 (count) - 25 (SRI cap)
+
+
+class TestAgentRunContract:
+    """Every agent returns a partial state update whose keys exist on EngineState."""
+
+    async def test_pci_scanner_run(self, basic_engine_state, crawl_result_no_policies):
+        basic_engine_state.crawl_result = crawl_result_no_policies
+        update = await pci_scanner.run(basic_engine_state)
+
+        assert set(update) <= set(type(basic_engine_state).model_fields)
+        result = update["pci_result"]
+        assert 0 <= result.security_score <= 100
+        assert result.third_party_scripts == 3
+        assert result.scripts_without_sri == 3
+        assert update["audit_log"][-1].agent == "PCIScanner"
+
+    async def test_pci_scanner_without_crawl_degrades(self, basic_engine_state):
+        """A missing crawl must produce an error entry, not raise."""
+        update = await pci_scanner.run(basic_engine_state)
+        assert "errors" in update
+        assert update["audit_log"][-1].agent == "PCIScanner"
+
+    async def test_kyc_validator_run(self, basic_engine_state):
+        update = await kyc_validator.run(basic_engine_state)
+
+        assert set(update) <= set(type(basic_engine_state).model_fields)
+        # The FreshKart fixture has Pvt./Private and spacing differences planted
+        assert update["kyc_result"].overall_consistent is False
+        assert update["audit_log"][-1].agent == "KYCValidator"

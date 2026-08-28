@@ -10,8 +10,6 @@ from backend.api import routes, websocket
 from backend.config import get_settings
 from backend.models.database import Base
 
-_playwright_browser = None
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any
 
 from langgraph.graph import END, StateGraph
 
@@ -14,7 +13,7 @@ from backend.agents import (
     webcrawler,
     pci_scanner,
 )
-from backend.models.schemas import AuditLogEntry, EngineState, MerchantInput
+from backend.models.schemas import EngineState, MerchantInput
 
 
 # LangGraph requires state as a plain dict or TypedDict; we adapt EngineState
@@ -27,16 +26,11 @@ def _dict_to_state(d: dict) -> EngineState:
 
 
 def _merge_state(current: dict, update: dict) -> dict:
-    """Merge partial state update dict into current state dict."""
-    merged = current.copy()
-    for key, value in update.items():
-        if key == "audit_log" and isinstance(value, list):
-            merged[key] = value  # already cumulative from agents
-        elif key == "errors" and isinstance(value, list):
-            merged[key] = value
-        else:
-            merged[key] = value
-    return merged
+    """Merge a partial agent update into the state dict.
+
+    Agents return cumulative audit_log and errors lists, so a plain overwrite is correct.
+    """
+    return {**current, **update}
 
 
 # ── Node functions (LangGraph expects plain dict → dict) ──────────────────────

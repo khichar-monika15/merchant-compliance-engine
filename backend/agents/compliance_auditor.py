@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from datetime import datetime, timezone
@@ -216,15 +217,25 @@ async def run(state: EngineState) -> dict:
             details=gst_number,
         )
 
-        # Run policy checks concurrently
-        refund_check, privacy_check, terms_check = await _concurrent_checks(
+        # Run policy checks concurrently — one failing check must not abort the others
+        results = await asyncio.gather(
             _score_policy("RBI-001", "refund"),
             _score_policy("RBI-002", "privacy"),
             _score_policy("RBI-003", "terms"),
+            return_exceptions=True,
         )
+        refund_check, privacy_check, terms_check = [
+            r if isinstance(r, ComplianceCheck) else ComplianceCheck(
+                name=name, check_id=cid, issues=[f"Check failed: {r}"], severity=Severity.CRITICAL
+            )
+            for r, name, cid in zip(
+                results,
+                ("Refund Policy", "Privacy Policy", "Terms & Conditions"),
+                ("RBI-001", "RBI-002", "RBI-003"),
+            )
+        ]
 
-        # Detect business category
-        business_category = _detect_business_category(all_html, crawl.tech_stack_signals if crawl else {})
+        business_category = _detect_business_category(all_html)
 
         # Compute overall score
         checks = [refund_check, privacy_check, terms_check, contact_check]
@@ -277,12 +288,7 @@ async def run(state: EngineState) -> dict:
         }
 
 
-async def _concurrent_checks(*coros):
-    import asyncio
-    return await asyncio.gather(*coros)
-
-
-def _detect_business_category(html: str, tech_signals: dict) -> str:
+def _detect_business_category(html: str) -> str:
     html_lower = html.lower()
     if any(kw in html_lower for kw in ["add to cart", "buy now", "checkout", "product", "shop now", "order online"]):
         return "ecommerce"
