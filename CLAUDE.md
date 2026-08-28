@@ -11,7 +11,7 @@ KYC consistency, PCI DSS surface security, and integration readiness.
 - Supervisor-worker pattern using LangGraph (StateGraph)
 - 7 specialist agents: WebCrawler, ComplianceAuditor, PCIScanner, KYCValidator, PolicyGenerator, IntegrationAdvisor, ReportGenerator
 - Graph: validate → crawl → parallel_analysis (asyncio.gather) → conditional policy_gen → report
-- Claude API (claude-sonnet-4-6) for LLM calls
+- LLM via OpenAI-compatible endpoint (AWS Bedrock mantle, qwen.qwen3-32b by default) or Anthropic direct API
 - FastAPI backend, React+TypeScript+Tailwind frontend
 - SQLite (aiosqlite) for audit trail persistence
 
@@ -48,7 +48,10 @@ uv run python -m backend.tests.validate_ground_truth
 
 - Python 3.12 (uv-managed)
 - Node 24+
-- Needs `.env` with ANTHROPIC_API_KEY, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET
+- Needs `.env` with either:
+  - `OPENAI_API_KEY` + `OPENAI_BASE_URL` (Bedrock mantle, default) + `LLM_MODEL=qwen.qwen3-32b`
+  - or `ANTHROPIC_API_KEY` (direct Anthropic API)
+- Also set `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` (test keys with `rzp_test_` prefix)
 
 ## Conventions
 
