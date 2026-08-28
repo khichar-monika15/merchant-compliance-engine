@@ -45,6 +45,18 @@ class TestCheckNamePair:
         issues_text = " ".join(result["issues"])
         assert "spacing" in issues_text.lower() or result["match"] is False
 
+    @pytest.mark.parametrize("name", ["Anand & Sons", "Brands & Co", "Chandra & Standard Traders"])
+    def test_identical_name_with_ampersand_matches(self, name):
+        """A name containing both '&' and the letters 'and' must not mismatch against itself."""
+        result = check_name_pair(name, name, "PAN", "GST")
+        assert result["match"] is True
+        assert result["issues"] == []
+
+    def test_ampersand_vs_spelled_out_still_detected(self):
+        result = check_name_pair("ABC & Sons", "ABC and Sons", "PAN", "GST")
+        assert result["match"] is False
+        assert any("& vs and" in issue for issue in result["issues"])
+
 
 class TestValidateKYCConsistency:
     def test_all_matching(self):
@@ -73,3 +85,8 @@ class TestValidateKYCConsistency:
     def test_confidence_range(self):
         result = validate_kyc_consistency("Test Pvt Ltd", "TEST PRIVATE LIMITED", "Test Private Limited")
         assert 0.0 <= result["confidence"] <= 1.0
+
+    def test_identical_ampersand_names_are_consistent(self):
+        result = validate_kyc_consistency("Anand & Sons", "Anand & Sons", "Anand & Sons")
+        assert result["overall_consistent"] is True
+        assert result["common_mismatches"] == []

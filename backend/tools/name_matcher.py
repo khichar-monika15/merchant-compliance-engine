@@ -17,7 +17,7 @@ _NORMALIZATION_RULES: list[tuple[str, str, int]] = [
 _KNOWN_MISMATCH_PATTERNS = [
     {
         "pattern": "& vs and",
-        "detect": lambda a, b: ("&" in a and "and" in b.lower()) or ("&" in b and "and" in a.lower()),
+        "detect": lambda a, b: _has_ampersand_mismatch(a, b),
     },
     {
         "pattern": "Pvt vs Private",
@@ -34,6 +34,13 @@ _KNOWN_MISMATCH_PATTERNS = [
 ]
 
 
+def _has_ampersand_mismatch(a: str, b: str) -> bool:
+    """One document uses '&' where the other spells out 'and', but they are otherwise the same name."""
+    if ("&" in a) == ("&" in b):
+        return False
+    return normalize_name(a) == normalize_name(b)
+
+
 def _has_abbrev_mismatch(a: str, b: str, abbrev: str, full: str) -> bool:
     a_lower, b_lower = a.lower(), b.lower()
     return (abbrev in a_lower and full in b_lower) or (full in a_lower and abbrev in b_lower)
@@ -43,9 +50,6 @@ def _has_spacing_diff(a: str, b: str) -> bool:
     """Detect cases where words are merged in one name vs spaced in the other."""
     a_no_space = re.sub(r"\s+", "", a.lower())
     b_no_space = re.sub(r"\s+", "", b.lower())
-    if a_no_space == b_no_space and a.lower().replace(" ", "") != b.lower().replace(" ", ""):
-        return False
-    # If removing spaces makes them equal but they looked different, that's a spacing issue
     return a_no_space == b_no_space and a.lower() != b.lower()
 
 
@@ -64,9 +68,11 @@ def check_name_pair(name_a: str, name_b: str, label_a: str, label_b: str) -> dic
     similarity = rapidfuzz_fuzz.WRatio(norm_a, norm_b) / 100.0
 
     issues: list[str] = []
-    for mp in _KNOWN_MISMATCH_PATTERNS:
-        if mp["detect"](name_a, name_b):
-            issues.append(f"{mp['pattern']} mismatch between {label_a} and {label_b}")
+    # Identical documents cannot disagree — only compare spellings when the raw names differ
+    if name_a.strip().lower() != name_b.strip().lower():
+        for mp in _KNOWN_MISMATCH_PATTERNS:
+            if mp["detect"](name_a, name_b):
+                issues.append(f"{mp['pattern']} mismatch between {label_a} and {label_b}")
 
     if similarity < 0.90 and not issues:
         issues.append(f"{label_a} '{name_a}' differs significantly from {label_b} '{name_b}'")
