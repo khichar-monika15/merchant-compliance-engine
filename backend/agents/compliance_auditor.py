@@ -5,9 +5,8 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from anthropic import AsyncAnthropic
-
 from backend.config import get_settings
+from backend.tools.llm_client import llm_complete
 from backend.models.schemas import (
     AuditLogEntry,
     ComplianceCheck,
@@ -74,8 +73,8 @@ def _check_gst_display(all_html: str) -> tuple[bool, str | None]:
     return False, None
 
 
-async def _llm_quality_score(client: AsyncAnthropic, policy_text: str, policy_type: str, business_type: str) -> tuple[int, str]:
-    """Use Claude to semantically score policy quality (0-10) and detect issues."""
+async def _llm_quality_score(policy_text: str, policy_type: str, business_type: str) -> tuple[int, str]:
+    """Use LLM to semantically score policy quality (0-10) and detect issues."""
     prompt = f"""You are a compliance analyst evaluating merchant policies for RBI Payment Aggregator guidelines.
 
 Policy type: {policy_type}
@@ -95,13 +94,9 @@ Respond in JSON only:
 {{"score": <0-10>, "issues": ["issue1", "issue2"], "details": "brief assessment"}}"""
 
     try:
-        resp = await client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=256,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        text = resp.content[0].text.strip()
-        # Strip markdown code blocks if present
+        text = await llm_complete(prompt, max_tokens=256)
+        if not text:
+            return 5, "LLM scoring unavailable"
         if text.startswith("```"):
             text = re.sub(r"^```json?\n?", "", text).rstrip("```").strip()
         data = json.loads(text)
@@ -120,8 +115,6 @@ async def run(state: EngineState) -> dict:
         pages = crawl.pages_found if crawl else {}
         identified = crawl.identified_pages if crawl else {}
         all_html = " ".join(pages.values())
-
-        client = AsyncAnthropic(api_key=settings.anthropic_api_key) if settings.anthropic_api_key else None
 
         async def _score_policy(check_id: str, policy_type: str) -> ComplianceCheck:
             check_def = next((c for c in rbi_db["checks"] if c["id"] == check_id), None)
@@ -155,9 +148,9 @@ async def run(state: EngineState) -> dict:
             # LLM semantic quality scoring (if API key available)
             details = ""
             llm_issues: list[str] = []
-            if found and client:
+            if found:
                 business_type = state.merchant_input.business_type or "unknown"
-                quality_score, details = await _llm_quality_score(client, page_html, check_def["name"], business_type)
+                quality_score, details = await _llm_quality_score(page_html, check_def["name"], business_type)
                 if quality_score < 5:
                     llm_issues.append(f"Policy content appears inadequate: {details}")
 

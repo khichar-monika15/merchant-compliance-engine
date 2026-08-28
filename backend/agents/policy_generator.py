@@ -3,9 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-from anthropic import AsyncAnthropic
-
 from backend.config import get_settings
+from backend.tools.llm_client import llm_complete
 from backend.models.schemas import (
     AuditLogEntry,
     EngineState,
@@ -45,14 +44,13 @@ def _select_template(policy_type: str, business_type: str) -> str:
 
 
 async def _generate_with_llm(
-    client: AsyncAnthropic,
     policy_type: str,
     template: str,
     company_name: str,
     business_type: str,
     website_url: str,
 ) -> str:
-    """Use Claude to customise the template for the merchant's specific context."""
+    """Use LLM to customise the template for the merchant's specific context."""
     prompt = f"""You are a legal document specialist generating a {policy_type} policy for an Indian merchant.
 
 Merchant details:
@@ -65,12 +63,7 @@ Base template (use as structure, customise to the merchant's business):
 
 Generate a complete, professional {policy_type} policy in Markdown. Replace all {{{{placeholder}}}} values with appropriate content based on the merchant details above. Make it specific to their business type. Keep it under 800 words. Output ONLY the Markdown document, no preamble."""
 
-    resp = await client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=2000,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return resp.content[0].text.strip()
+    return await llm_complete(prompt, max_tokens=2000)
 
 
 async def run(state: EngineState) -> dict:
@@ -124,17 +117,16 @@ async def run(state: EngineState) -> dict:
             "FREE_SHIPPING_THRESHOLD": "500",
         }
 
-        client = AsyncAnthropic(api_key=settings.anthropic_api_key) if settings.anthropic_api_key else None
         generated: list[GeneratedPolicy] = []
 
         for ptype in needed:
             tmpl_file = _select_template(ptype, business_type)
             template = _load_template(tmpl_file)
 
-            if client and template:
-                content = await _generate_with_llm(client, ptype, template, company_name, business_type, website_url)
-            elif template:
-                content = _fill_template(template, base_replacements)
+            if template:
+                content = await _generate_with_llm(ptype, template, company_name, business_type, website_url)
+                if not content:
+                    content = _fill_template(template, base_replacements)
             else:
                 content = f"# {ptype.title()} Policy\n\n*Policy generation failed — template not found.*"
 
