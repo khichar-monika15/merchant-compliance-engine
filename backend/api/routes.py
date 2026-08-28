@@ -31,8 +31,14 @@ async def _run_scan_job(job_id: str, merchant_input: MerchantInput) -> None:
     """Background task: run the pipeline and store result."""
     _jobs[job_id]["status"] = "running"
 
-    async def progress_callback(agent: str, message: str, pct: int):
-        await broadcast_progress(job_id, {"agent": agent, "message": message, "progress": pct})
+    async def progress_callback(agent: str, message: str, pct: int, event_type: str = "progress"):
+        await broadcast_progress(job_id, {
+            "type": event_type,
+            "agent": agent,
+            "message": message,
+            "progress": pct,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
 
     await progress_callback("Orchestrator", "Starting compliance scan", 5)
 
@@ -41,7 +47,7 @@ async def _run_scan_job(job_id: str, merchant_input: MerchantInput) -> None:
         state = await run_pipeline(merchant_input)
         await progress_callback("ReportGenerator", "Generating readiness report", 95)
 
-        _jobs[job_id]["status"] = "complete"
+        _jobs[job_id]["status"] = "completed"
         _jobs[job_id]["report"] = state.readiness_report
         _jobs[job_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
 
@@ -55,7 +61,7 @@ async def _run_scan_job(job_id: str, merchant_input: MerchantInput) -> None:
                 run = AuditRun(
                     job_id=job_id,
                     website_url=str(merchant_input.website_url),
-                    status="complete",
+                    status="completed",
                     overall_score=state.readiness_report.overall_score if state.readiness_report else 0,
                     grade=state.readiness_report.grade if state.readiness_report else "F",
                     report_json=json.dumps(state.readiness_report.model_dump()) if state.readiness_report else None,
@@ -67,12 +73,18 @@ async def _run_scan_job(job_id: str, merchant_input: MerchantInput) -> None:
         except Exception:
             pass  # DB persistence is non-critical
 
-        await progress_callback("Complete", "Scan complete", 100)
+        await progress_callback("Complete", "Scan complete", 100, event_type="complete")
 
     except Exception as e:
-        _jobs[job_id]["status"] = "error"
+        _jobs[job_id]["status"] = "failed"
         _jobs[job_id]["error"] = str(e)
-        await broadcast_progress(job_id, {"agent": "Orchestrator", "message": f"Error: {e}", "progress": -1})
+        await broadcast_progress(job_id, {
+            "type": "error",
+            "agent": "Orchestrator",
+            "message": f"Error: {e}",
+            "progress": -1,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
 
 
 @router.get("/health")
@@ -106,8 +118,12 @@ async def get_scan(job_id: str):
     job = _jobs.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    # Normalize legacy "error" status to "failed" for frontend compatibility
+    status = job["status"]
+    if status == "error":
+        status = "failed"
     return ScanResponse(
         job_id=job_id,
-        status=job["status"],
+        status=status,
         report=job.get("report"),
     )

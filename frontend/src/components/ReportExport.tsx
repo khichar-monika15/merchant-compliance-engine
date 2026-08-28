@@ -1,36 +1,29 @@
-import { ReadinessReport } from '../types'
+import { GapItem, ReadinessReport } from '../types'
 
 interface Props {
   report: ReadinessReport
+  gaps: GapItem[]
 }
 
-export function ReportExport({ report }: Props) {
+export function ReportExport({ report, gaps }: Props) {
   const exportJSON = () => {
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `mcie-report-${report.job_id}.json`
+    a.download = `mcie-report.json`
     a.click()
     URL.revokeObjectURL(url)
   }
 
   const summary = `# MCIE Compliance Report
-URL: ${report.website_url}
-Company: ${report.legal_name}
 Score: ${report.overall_score}/100  Grade: ${report.grade}
-Generated: ${new Date(report.created_at).toLocaleString()}
 
-## Dimension Scores
-RBI Compliance: ${Math.round(report.rbi_score)}/100
-KYC Consistency: ${Math.round(report.kyc_score)}/100
-PCI DSS: ${Math.round(report.pci_score)}/100
-Integration Readiness: ${Math.round(report.integration_score)}/100
+## Gaps (${gaps.length})
+${gaps.map((g) => `- [${g.severity.toUpperCase()}] ${g.title}: ${g.description}`).join('\n')}
 
-## Gaps (${report.gaps.length})
-${report.gaps.map((g) => `- [${g.severity}] ${g.description}`).join('\n')}
-
-Estimated fix time: ~${report.estimated_fix_hours} hours
+## Estimated fix time
+${report.estimated_fix_time}
 `
 
   const exportMarkdown = () => {
@@ -38,7 +31,7 @@ Estimated fix time: ~${report.estimated_fix_hours} hours
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `mcie-report-${report.job_id}.md`
+    a.download = `mcie-report.md`
     a.click()
     URL.revokeObjectURL(url)
   }

@@ -9,11 +9,11 @@ export function PolicyViewer({ policyGen }: Props) {
   const [activeTab, setActiveTab] = useState(0)
   const [copied, setCopied] = useState(false)
 
-  if (policyGen.policies_generated.length === 0) {
+  if (policyGen.generated_policies.length === 0) {
     return null
   }
 
-  const active = policyGen.policies_generated[activeTab]
+  const active = policyGen.generated_policies[activeTab]
 
   const copy = () => {
     navigator.clipboard.writeText(active.content).then(() => {
@@ -26,7 +26,7 @@ export function PolicyViewer({ policyGen }: Props) {
     <div className="bg-white rounded-xl border border-gray-200 p-6">
       <h2 className="text-lg font-semibold mb-4">Generated Policies</h2>
       <div className="flex gap-2 mb-4 flex-wrap">
-        {policyGen.policies_generated.map((p, i) => (
+        {policyGen.generated_policies.map((p, i) => (
           <button
             key={i}
             onClick={() => setActiveTab(i)}

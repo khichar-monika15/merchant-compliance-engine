@@ -38,7 +38,7 @@ export function useComplianceCheck() {
           cleanup()
         } else if (data.type === 'error') {
           setStatus('failed')
-          setError(data.message)
+          setError(data.message ?? 'Scan error')
           cleanup()
         }
       } catch {
@@ -61,7 +61,7 @@ export function useComplianceCheck() {
         cleanup()
       } else if (data.status === 'failed') {
         setStatus('failed')
-        setError(data.message)
+        setError('Scan failed')
         cleanup()
       }
     } catch {
@@ -79,7 +79,7 @@ export function useComplianceCheck() {
     setError(null)
 
     try {
-      const { data } = await axios.post<ScanResponse>('/api/scan', { merchant })
+      const { data } = await axios.post<ScanResponse>('/api/scan', merchant)
       setJobId(data.job_id)
       setStatus('running')
       connectWebSocket(data.job_id)

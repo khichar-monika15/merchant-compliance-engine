@@ -9,24 +9,29 @@ interface Props {
 export function InputForm({ onSubmit, disabled }: Props) {
   const [form, setForm] = useState<MerchantInput>({
     website_url: '',
-    legal_name: '',
-    trade_name: '',
-    gstin: '',
-    registration_name: '',
+    pan_name: '',
+    gst_legal_name: '',
+    bank_account_name: '',
+    business_type: '',
   })
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
     onSubmit({
       website_url: form.website_url.trim(),
-      legal_name: form.legal_name.trim(),
-      trade_name: form.trade_name?.trim() || undefined,
-      gstin: form.gstin?.trim() || undefined,
-      registration_name: form.registration_name?.trim() || undefined,
+      pan_name: form.pan_name.trim(),
+      gst_legal_name: form.gst_legal_name.trim(),
+      bank_account_name: form.bank_account_name.trim(),
+      business_type: form.business_type?.trim() || undefined,
     })
   }
 
-  const field = (key: keyof MerchantInput, label: string, placeholder: string, required = false) => (
+  const field = (
+    key: keyof MerchantInput,
+    label: string,
+    placeholder: string,
+    required = false,
+  ) => (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">
         {label} {required && <span className="text-red-500">*</span>}
@@ -45,10 +50,10 @@ export function InputForm({ onSubmit, disabled }: Props) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {field('website_url', 'Merchant Website URL', 'https://example.com', true)}
-      {field('legal_name', 'Legal / Registered Company Name', 'Acme Private Limited', true)}
-      {field('trade_name', 'Trade / Brand Name (optional)', 'Acme Store')}
-      {field('gstin', 'GSTIN (optional)', '29ABCDE1234F1Z5')}
-      {field('registration_name', 'KYC / Registration Document Name (optional)', 'ACME PRIVATE LIMITED')}
+      {field('pan_name', 'PAN Card / Business Name (as on PAN)', 'Acme Private Limited', true)}
+      {field('gst_legal_name', 'GST Legal Name (as on GST certificate)', 'ACME PRIVATE LIMITED', true)}
+      {field('bank_account_name', 'Bank Account Name (as on bank statement)', 'Acme Private Limited', true)}
+      {field('business_type', 'Business Type (optional)', 'ecommerce / saas / food_delivery / services')}
       <button
         type="submit"
         disabled={disabled}

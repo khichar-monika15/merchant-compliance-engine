@@ -1,141 +1,160 @@
-export type Severity = 'CRITICAL' | 'WARNING' | 'INFO' | 'PASS'
+// Types derived from backend/models/schemas.py — keep in sync
 
+export type Severity = 'critical' | 'warning' | 'info' | 'pass'
+
+// --- Merchant input (matches backend MerchantInput + ScanRequest) ---
 export interface MerchantInput {
   website_url: string
-  legal_name: string
-  trade_name?: string
-  gstin?: string
-  registration_name?: string
+  pan_name: string
+  gst_legal_name: string
+  bank_account_name: string
+  business_type?: string
 }
 
+// --- Crawl / Scripts ---
+export interface ScriptInfo {
+  src?: string
+  domain?: string
+  has_sri: boolean
+  sri_hash?: string
+  is_inline: boolean
+  is_first_party: boolean
+  risk_level?: 'low' | 'medium' | 'high'
+  category?: string
+}
+
+// --- Compliance (RBI) ---
 export interface ComplianceCheck {
-  check_id: string
   name: string
+  check_id: string
   found: boolean
   url?: string
-  quality_score?: number
+  quality_score: number
   severity: Severity
-  details: string
-  recommendation?: string
+  issues: string[]
+  details?: string
 }
 
 export interface ComplianceResult {
-  checks: ComplianceCheck[]
+  refund_policy: ComplianceCheck
+  privacy_policy: ComplianceCheck
+  terms_conditions: ComplianceCheck
+  contact_info: ComplianceCheck
+  gst_display: ComplianceCheck
+  business_category?: string
   overall_score: number
-  business_category: string
-  policy_pages_found: string[]
 }
 
-export interface ScriptInfo {
-  src: string
-  is_third_party: boolean
-  has_sri: boolean
-  integrity?: string
-  risk_level: 'low' | 'medium' | 'high' | 'unknown'
-  domain?: string
+// --- PCI DSS ---
+export interface SecurityHeaderInfo {
+  present: boolean
+  value?: string
+  strength?: string
+  score?: number
+  issues?: string[]
+  directives?: Record<string, string[]>
 }
 
 export interface PCIResult {
-  script_count: number
-  third_party_count: number
-  scripts_with_sri: number
-  scripts_missing_sri: number
-  scripts: ScriptInfo[]
-  security_headers: Record<string, string | null>
-  csp_score: number
-  headers_score: number
-  overall_score: number
-  checks: ComplianceCheck[]
+  scripts_inventory: ScriptInfo[]
+  total_scripts: number
+  third_party_scripts: number
+  scripts_without_sri: number
+  csp_header: SecurityHeaderInfo
+  hsts_header: SecurityHeaderInfo
+  x_frame_options: SecurityHeaderInfo
+  x_content_type: SecurityHeaderInfo
+  referrer_policy: SecurityHeaderInfo
+  security_score: number
+  critical_issues: string[]
 }
 
+// --- KYC ---
 export interface KYCMatch {
-  field_a: string
-  field_b: string
-  similarity: number
   match: boolean
+  similarity: number
+  normalized_a: string
+  normalized_b: string
   issues: string[]
 }
 
 export interface KYCResult {
-  matches: KYCMatch[]
-  all_consistent: boolean
-  overall_score: number
-  details: string
+  pan_gst_match: KYCMatch
+  gst_bank_match: KYCMatch
+  pan_bank_match: KYCMatch
+  common_mismatches: string[]
+  overall_consistent: boolean
+  confidence: number
 }
 
+// --- Policy generation ---
 export interface GeneratedPolicy {
   policy_type: string
   content: string
-  template_used: string
+  tailored_to: string
   word_count: number
 }
 
 export interface PolicyGenResult {
-  policies_generated: GeneratedPolicy[]
+  generated_policies: GeneratedPolicy[]
   policies_needed: string[]
 }
 
+// --- Integration ---
 export interface IntegrationResult {
-  detected_stack: string
+  detected_stack: Record<string, string[]>
   recommended_product: string
+  integration_method: string
   starter_code: string
-  language: string
-  integration_score: number
-  recommendations: string[]
+  starter_code_language: string
+  test_payment_result: Record<string, unknown>
 }
 
+// --- Gaps ---
 export interface GapItem {
-  id: string
-  category: 'rbi' | 'pci' | 'kyc'
-  severity: Severity
+  title: string
   description: string
-  fix_hint: string
-  estimated_hours: number
+  severity: Severity
+  category: string
+  fix_suggestion: string
 }
 
+// --- Audit ---
 export interface AuditLogEntry {
+  timestamp: string
   agent: string
   action: string
-  timestamp: string
-  result?: string
+  result: string
   duration_ms?: number
 }
 
+// --- Final report (matches backend ReadinessReport) ---
 export interface ReadinessReport {
-  job_id: string
-  website_url: string
-  legal_name: string
   overall_score: number
   grade: string
-  rbi_score: number
-  kyc_score: number
-  pci_score: number
-  integration_score: number
-  compliance_result?: ComplianceResult
-  pci_result?: PCIResult
-  kyc_result?: KYCResult
-  policy_gen_result?: PolicyGenResult
-  integration_result?: IntegrationResult
-  gaps: GapItem[]
-  audit_log: AuditLogEntry[]
-  estimated_fix_hours: number
-  created_at: string
+  critical_gaps: GapItem[]
+  warnings: GapItem[]
+  info_items: GapItem[]
+  compliance_details?: ComplianceResult
+  pci_details?: PCIResult
+  kyc_details?: KYCResult
+  generated_policies?: PolicyGenResult
+  integration_details?: IntegrationResult
+  estimated_fix_time: string
+  audit_trail: AuditLogEntry[]
 }
 
-export interface ScanRequest {
-  merchant: MerchantInput
-}
-
+// --- API ---
 export interface ScanResponse {
   job_id: string
   status: 'queued' | 'running' | 'completed' | 'failed'
-  message: string
   report?: ReadinessReport
 }
 
 export type ProgressEvent = {
-  type: 'progress' | 'complete' | 'error'
+  type: 'progress' | 'complete' | 'error' | 'ping'
   agent?: string
-  message: string
-  timestamp: string
+  message?: string
+  progress?: number
+  timestamp?: string
 }
