@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import uuid
 from datetime import datetime, timezone
 
@@ -10,21 +11,30 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from backend.agents.orchestrator import run_pipeline
-from backend.api.websocket import broadcast_progress, progress_queues
+from backend.api.websocket import broadcast_progress, finish_job, register_job
 from backend.config import get_settings
 from backend.models.database import AuditRun, Base
 from backend.models.schemas import MerchantInput, ScanRequest, ScanResponse
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api")
 
 # In-memory job store (production would use Redis/DB)
 _jobs: dict[str, dict] = {}
 
+# Strong references to running scans — the event loop only holds weak ones,
+# so without this a task can be garbage collected mid-scan
+_running_tasks: set[asyncio.Task] = set()
 
-async def _get_engine():
-    settings = get_settings()
-    engine = create_async_engine(settings.database_url, echo=False)
-    return engine
+_engine = None
+
+
+def _get_engine():
+    global _engine
+    if _engine is None:
+        _engine = create_async_engine(get_settings().database_url, echo=False)
+    return _engine
 
 
 async def _run_scan_job(job_id: str, merchant_input: MerchantInput) -> None:
@@ -45,32 +55,19 @@ async def _run_scan_job(job_id: str, merchant_input: MerchantInput) -> None:
     try:
         state = await run_pipeline(merchant_input, progress_fn=progress_callback)
 
+        # A pipeline that ran to the end without producing a report is a failure, not a success
+        if state.readiness_report is None:
+            reason = "; ".join(state.errors) or "Pipeline produced no report"
+            _jobs[job_id]["status"] = "failed"
+            _jobs[job_id]["error"] = reason
+            await progress_callback("Orchestrator", f"Error: {reason}", -1, event_type="error")
+            return
+
         _jobs[job_id]["status"] = "completed"
         _jobs[job_id]["report"] = state.readiness_report
         _jobs[job_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
 
-        # Persist to SQLite
-        try:
-            engine = await _get_engine()
-            async with engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
-            async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-            async with async_session() as session:
-                run = AuditRun(
-                    job_id=job_id,
-                    website_url=str(merchant_input.website_url),
-                    status="completed",
-                    overall_score=state.readiness_report.overall_score if state.readiness_report else 0,
-                    grade=state.readiness_report.grade if state.readiness_report else "F",
-                    report_json=json.dumps(state.readiness_report.model_dump()) if state.readiness_report else None,
-                    completed_at=datetime.now(timezone.utc),
-                )
-                session.add(run)
-                await session.commit()
-            await engine.dispose()
-        except Exception:
-            pass  # DB persistence is non-critical
-
+        await _persist_run(job_id, merchant_input, state)
         await progress_callback("Complete", "Scan complete", 100, event_type="complete")
 
     except Exception as e:
@@ -83,6 +80,30 @@ async def _run_scan_job(job_id: str, merchant_input: MerchantInput) -> None:
             "progress": -1,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         })
+    finally:
+        finish_job(job_id)
+
+
+async def _persist_run(job_id: str, merchant_input: MerchantInput, state) -> None:
+    """Write the completed run to SQLite. Non-critical — a failure must not fail the scan."""
+    try:
+        engine = _get_engine()
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+        async with async_session() as session:
+            session.add(AuditRun(
+                job_id=job_id,
+                website_url=str(merchant_input.website_url),
+                status="completed",
+                overall_score=state.readiness_report.overall_score,
+                grade=state.readiness_report.grade,
+                report_json=json.dumps(state.readiness_report.model_dump(mode="json")),
+                completed_at=datetime.now(timezone.utc),
+            ))
+            await session.commit()
+    except Exception as e:
+        logger.warning("Audit trail persistence failed for job %s: %s", job_id, e)
 
 
 @router.get("/health")
@@ -106,8 +127,10 @@ async def start_scan(request: ScanRequest):
         "created_at": datetime.now(timezone.utc).isoformat(),
         "report": None,
     }
-    progress_queues[job_id] = asyncio.Queue()
-    asyncio.create_task(_run_scan_job(job_id, merchant_input))
+    register_job(job_id)
+    task = asyncio.create_task(_run_scan_job(job_id, merchant_input))
+    _running_tasks.add(task)
+    task.add_done_callback(_running_tasks.discard)
     return ScanResponse(job_id=job_id, status="queued")
 
 
@@ -116,12 +139,8 @@ async def get_scan(job_id: str):
     job = _jobs.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
-    # Normalize legacy "error" status to "failed" for frontend compatibility
-    status = job["status"]
-    if status == "error":
-        status = "failed"
     return ScanResponse(
         job_id=job_id,
-        status=status,
+        status=job["status"],
         report=job.get("report"),
     )

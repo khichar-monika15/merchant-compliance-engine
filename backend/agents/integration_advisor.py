@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -9,6 +10,7 @@ from backend.tools.razorpay_client import create_order
 
 _STACKS_DB_PATH = Path(__file__).parent.parent / "knowledge" / "tech_stack_signatures.json"
 _STARTER_DIR = Path(__file__).parent.parent / "knowledge" / "starter_code_templates"
+_TEST_ORDER_TIMEOUT_SECONDS = 10
 
 
 def _load_stacks_db() -> dict:
@@ -38,6 +40,21 @@ def _load_starter_code(filename: str) -> tuple[str, str]:
     return code, lang_map.get(ext, ext)
 
 
+async def _test_order() -> dict:
+    """Create a Razorpay test-mode order off the event loop.
+
+    create_order() is synchronous `requests` I/O; calling it directly would block every other
+    agent in the parallel phase along with the API and the WebSocket heartbeat.
+    """
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(create_order, amount_paise=100, notes={"purpose": "MCIE integration test"}),
+            timeout=_TEST_ORDER_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        return {"success": False, "order_id": None, "error": "Razorpay test order timed out"}
+
+
 async def run(state: EngineState) -> dict:
     t0 = datetime.now(timezone.utc)
 
@@ -53,8 +70,7 @@ async def run(state: EngineState) -> dict:
         starter_file = rec.get("starter_template", "html_razorpay.html")
         starter_code, lang = _load_starter_code(starter_file)
 
-        # Run a test payment on Razorpay test-mode
-        test_payment = create_order(amount_paise=100, notes={"purpose": "MCIE integration test"})
+        test_payment = await _test_order()
 
         result = IntegrationResult(
             detected_stack=tech_signals,  # {stack_name: [evidence_strings]} — Record<string, string[]>
@@ -70,8 +86,8 @@ async def run(state: EngineState) -> dict:
         log = AuditLogEntry(
             timestamp=t0.isoformat(),
             agent="IntegrationAdvisor",
-            action=f"Tech stack detection + Razorpay integration recommendation",
-            result=f"Detected: {primary_stack} → Recommend: {rec['product']} | Test payment: {test_status}",
+            action="Tech stack detection + Razorpay integration recommendation",
+            result=f"Detected: {primary_stack} → Recommend: {result.recommended_product} | Test payment: {test_status}",
             duration_ms=round(duration_ms, 1),
         )
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from contextlib import AsyncExitStack
 from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
@@ -124,11 +125,14 @@ async def crawl_website(url: str, max_pages: int = 20, timeout: int = 30) -> dic
     all_links: list[str] = []
     tech_stack_signals: dict[str, list[str]] = {}
 
-    async with async_playwright() as p:
+    # The exit stack closes the context and browser on every path, including exceptions
+    async with async_playwright() as p, AsyncExitStack() as stack:
         browser: Browser = await p.chromium.launch(headless=True)
+        stack.push_async_callback(browser.close)
         context = await browser.new_context(
             user_agent="Mozilla/5.0 (compatible; MCIEBot/1.0; +https://github.com/khichar-monika15/merchant-compliance-engine)"
         )
+        stack.push_async_callback(context.close)
 
         async def fetch_page(page_url: str) -> tuple[str, dict[str, str]]:
             page = await context.new_page()
@@ -187,7 +191,9 @@ async def crawl_website(url: str, max_pages: int = 20, timeout: int = 30) -> dic
 
         crawled = 0
         for page_url in to_crawl:
-            if crawled >= max_pages - 1 or page_url in pages_found:
+            if crawled >= max_pages - 1:
+                break
+            if page_url in pages_found:
                 continue
             html, headers = await fetch_page(page_url)
             if html:
@@ -196,8 +202,6 @@ async def crawl_website(url: str, max_pages: int = 20, timeout: int = 30) -> dic
                 page_scripts = extract_scripts(html, page_url)
                 scripts_all.extend(page_scripts)
             crawled += 1
-
-        await browser.close()
 
     # Deduplicate scripts by src
     seen_srcs: set[str] = set()
@@ -212,7 +216,7 @@ async def crawl_website(url: str, max_pages: int = 20, timeout: int = 30) -> dic
         "pages_found": pages_found,
         "scripts_found": unique_scripts,
         "http_headers": http_headers,
-        "navigation_links": list(set(all_links))[:100],
+        "navigation_links": sorted(set(all_links))[:100],
         "identified_pages": identified_pages,
         "tech_stack_signals": tech_stack_signals,
         "crawl_errors": crawl_errors,
