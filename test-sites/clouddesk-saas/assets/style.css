@@ -1,0 +1,125 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: #1a1a1a;
+  background: #f8fafc;
+  line-height: 1.6;
+}
+
+header {
+  background: white;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 1rem 2rem;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+nav .logo a { color: #1e40af; text-decoration: none; font-size: 1.4rem; font-weight: 700; }
+nav ul { list-style: none; display: flex; gap: 1.5rem; align-items: center; }
+nav ul li a { color: #4b5563; text-decoration: none; font-size: 0.95rem; }
+nav ul li a:hover { color: #1e40af; }
+nav ul li a.cta {
+  background: #1e40af;
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+main { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+
+.hero {
+  text-align: center;
+  padding: 5rem 2rem;
+}
+
+.hero h1 { font-size: 2.8rem; color: #111827; margin-bottom: 1.2rem; line-height: 1.2; }
+.hero p { color: #6b7280; font-size: 1.15rem; margin-bottom: 2rem; }
+
+.btn {
+  display: inline-block;
+  background: #1e40af;
+  color: white;
+  padding: 0.75rem 2rem;
+  border-radius: 8px;
+  text-decoration: none;
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0.25rem;
+}
+
+.btn-secondary {
+  display: inline-block;
+  background: transparent;
+  color: #1e40af;
+  padding: 0.75rem 2rem;
+  border-radius: 8px;
+  text-decoration: none;
+  font-size: 1rem;
+  font-weight: 600;
+  border: 2px solid #1e40af;
+  margin: 0.25rem;
+}
+
+.features, .pricing { margin: 4rem 0; }
+.features h2, .pricing h2 { font-size: 2rem; text-align: center; margin-bottom: 2rem; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1.5rem;
+}
+
+.feature-card, .price-card {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 2rem;
+}
+
+.feature-card h3, .price-card h3 { color: #111827; margin-bottom: 0.75rem; }
+.feature-card p { color: #6b7280; font-size: 0.95rem; }
+
+.price-card { text-align: center; }
+.price-card.featured { border-color: #1e40af; box-shadow: 0 4px 16px rgba(30,64,175,0.15); }
+.price-card .price { font-size: 2rem; font-weight: 700; color: #1e40af; margin: 1rem 0; }
+.price-card ul { list-style: none; margin-bottom: 1.5rem; }
+.price-card ul li { padding: 0.3rem 0; color: #4b5563; }
+.price-card ul li::before { content: '✓ '; color: #1e40af; }
+
+.footer-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 2rem;
+  max-width: 1200px;
+  margin: 0 auto 2rem;
+  padding: 2rem;
+}
+
+footer {
+  background: #1e293b;
+  color: #94a3b8;
+}
+
+.footer-grid h4 { color: white; margin-bottom: 1rem; }
+.footer-grid ul { list-style: none; }
+.footer-grid ul li a { color: #94a3b8; text-decoration: none; display: block; padding: 0.25rem 0; }
+
+.footer-copy { text-align: center; padding: 1rem; border-top: 1px solid #334155; color: #64748b; }
+
+.page-content { max-width: 800px; }
+.page-content h1 { font-size: 2rem; color: #111827; margin-bottom: 1.5rem; }
+.page-content p { margin-bottom: 1rem; color: #374151; }
+
+.contact-info { padding: 1.5rem; background: #eff6ff; border-radius: 8px; margin-bottom: 2rem; }
+.contact-info p { margin-bottom: 0.5rem; }

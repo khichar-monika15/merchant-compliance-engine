@@ -1,0 +1,21 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Helvetica Neue', sans-serif; color: #1a1a1a; }
+header { background: #e53935; color: white; padding: 1rem 2rem; }
+nav { display: flex; justify-content: space-between; align-items: center; }
+nav a { color: white; text-decoration: none; font-weight: 600; font-size: 1.2rem; }
+nav ul { list-style: none; display: flex; gap: 1.5rem; }
+nav ul a { font-weight: normal; font-size: 0.9rem; }
+.hero { background: linear-gradient(135deg, #e53935, #ef6c00); color: white; padding: 5rem 2rem; text-align: center; }
+.hero h1 { font-size: 2.5rem; margin-bottom: 1rem; }
+.hero p { font-size: 1.1rem; margin-bottom: 2rem; }
+.btn { background: white; color: #e53935; padding: 0.8rem 2rem; border-radius: 25px; text-decoration: none; font-weight: bold; display: inline-block; }
+.how { padding: 3rem 2rem; text-align: center; }
+h2 { margin-bottom: 2rem; font-size: 1.8rem; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; max-width: 800px; margin: 0 auto; }
+.card { padding: 1.5rem; border: 1px solid #eee; border-radius: 8px; }
+.card h3 { color: #e53935; margin-bottom: 0.5rem; }
+footer { background: #1a1a1a; color: #ccc; padding: 1.5rem; text-align: center; font-size: 0.85rem; }
+footer a { color: #ccc; }
+.policy { max-width: 800px; margin: 2rem auto; padding: 2rem; line-height: 1.8; }
+.policy h1 { margin-bottom: 1.5rem; }
+.policy p { margin-bottom: 1rem; }

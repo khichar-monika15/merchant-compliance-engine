@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Products - FreshKart India</title>
+  <link rel="stylesheet" href="/assets/style.css">
+  <script src="https://www.googletagmanager.com/gtag/js?id=GA-XXXXX"></script>
+  <script src="https://connect.facebook.net/en_US/fbevents.js"></script>
+</head>
+<body>
+  <header>
+    <nav>
+      <div class="logo"><a href="/">🥦 FreshKart India</a></div>
+      <ul>
+        <li><a href="/products.html">Products</a></li>
+        <li><a href="/cart.html">Cart</a></li>
+        <li><a href="/contact.html">Contact</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <section class="page-content">
+      <h1>All Products</h1>
+      <div class="filter-bar">
+        <button onclick="filterCategory('all')">All</button>
+        <button onclick="filterCategory('vegetables')">Vegetables</button>
+        <button onclick="filterCategory('fruits')">Fruits</button>
+        <button onclick="filterCategory('dairy')">Dairy</button>
+      </div>
+
+      <div class="product-grid">
+        <div class="product-card" data-category="vegetables">
+          <img src="https://via.placeholder.com/200x150?text=Tomatoes" alt="Tomatoes">
+          <h3>Tomatoes 1kg</h3>
+          <p class="price">₹45</p>
+          <button onclick="addToCart('tomatoes', 45)">Add to Cart</button>
+        </div>
+        <div class="product-card" data-category="vegetables">
+          <img src="https://via.placeholder.com/200x150?text=Spinach" alt="Spinach">
+          <h3>Spinach 250g</h3>
+          <p class="price">₹30</p>
+          <button onclick="addToCart('spinach', 30)">Add to Cart</button>
+        </div>
+        <div class="product-card" data-category="vegetables">
+          <img src="https://via.placeholder.com/200x150?text=Onions" alt="Onions">
+          <h3>Onions 1kg</h3>
+          <p class="price">₹35</p>
+          <button onclick="addToCart('onions', 35)">Add to Cart</button>
+        </div>
+        <div class="product-card" data-category="fruits">
+          <img src="https://via.placeholder.com/200x150?text=Apples" alt="Apples">
+          <h3>Apples 1kg</h3>
+          <p class="price">₹180</p>
+          <button onclick="addToCart('apples', 180)">Add to Cart</button>
+        </div>
+        <div class="product-card" data-category="fruits">
+          <img src="https://via.placeholder.com/200x150?text=Bananas" alt="Bananas">
+          <h3>Bananas 12pcs</h3>
+          <p class="price">₹60</p>
+          <button onclick="addToCart('bananas', 60)">Add to Cart</button>
+        </div>
+        <div class="product-card" data-category="dairy">
+          <img src="https://via.placeholder.com/200x150?text=Milk" alt="Milk">
+          <h3>Full Cream Milk 1L</h3>
+          <p class="price">₹68</p>
+          <button onclick="addToCart('milk', 68)">Add to Cart</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>© 2024 FreshKart India. All rights reserved.</p>
+    <p>Email: hello@freshkart.in</p>
+  </footer>
+  <script src="/assets/main.js"></script>
+</body>
+</html>

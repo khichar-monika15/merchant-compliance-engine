@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FreshKart India - Fresh Produce Online</title>
+  <link rel="stylesheet" href="/assets/style.css">
+  <!-- 14 scripts WITHOUT SRI -->
+  <script src="https://www.google-analytics.com/analytics.js"></script>
+  <script src="https://www.googletagmanager.com/gtag/js?id=GA-XXXXX"></script>
+  <script src="https://connect.facebook.net/en_US/fbevents.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://static.hotjar.com/c/hotjar-123456.js"></script>
+  <script src="https://widget.intercom.io/widget/abc123"></script>
+  <script src="https://cdn.segment.com/analytics.js/v1/key/analytics.min.js"></script>
+  <script src="https://cdn.onesignal.com/sdks/OneSignalSDK.js"></script>
+  <script src="https://platform.twitter.com/widgets.js"></script>
+  <script src="https://snap.licdn.com/li.lms-analytics/insight.min.js"></script>
+  <script src="https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js"></script>
+  <script src="https://cdn.amplitude.com/libs/amplitude-8.21.4-min.gz.js"></script>
+  <script src="https://www.google.com/recaptcha/api.js"></script>
+  <script>
+    // Inline tracking
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'GA-XXXXX');
+    fbq('init', '123456789');
+  </script>
+</head>
+<body>
+  <header>
+    <nav>
+      <div class="logo"><a href="/">🥦 FreshKart India</a></div>
+      <ul>
+        <li><a href="/products.html">Products</a></li>
+        <li><a href="/cart.html">Cart</a></li>
+        <li><a href="/about.html">About</a></li>
+        <li><a href="/contact.html">Contact</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>Fresh Produce Delivered to Your Door</h1>
+      <p>Order fresh vegetables, fruits, and organic products online. Delivered in 2 hours!</p>
+      <a href="/products.html" class="btn">Shop Now</a>
+    </section>
+
+    <section class="categories">
+      <h2>Shop by Category</h2>
+      <div class="grid">
+        <div class="card"><h3>Vegetables</h3><p>₹50 onwards</p><a href="/products.html">View All</a></div>
+        <div class="card"><h3>Fruits</h3><p>₹80 onwards</p><a href="/products.html">View All</a></div>
+        <div class="card"><h3>Organic</h3><p>₹120 onwards</p><a href="/products.html">View All</a></div>
+        <div class="card"><h3>Dairy</h3><p>₹40 onwards</p><a href="/products.html">View All</a></div>
+      </div>
+    </section>
+
+    <section class="featured">
+      <h2>Today's Deals</h2>
+      <div class="grid">
+        <div class="product-card">
+          <img src="https://via.placeholder.com/200x150?text=Tomatoes" alt="Tomatoes">
+          <h3>Tomatoes 1kg</h3>
+          <p class="price">₹45</p>
+          <button onclick="addToCart()">Add to Cart</button>
+        </div>
+        <div class="product-card">
+          <img src="https://via.placeholder.com/200x150?text=Spinach" alt="Spinach">
+          <h3>Spinach 250g</h3>
+          <p class="price">₹30</p>
+          <button onclick="addToCart()">Add to Cart</button>
+        </div>
+        <div class="product-card">
+          <img src="https://via.placeholder.com/200x150?text=Apples" alt="Apples">
+          <h3>Apples 1kg</h3>
+          <p class="price">₹180</p>
+          <button onclick="addToCart()">Add to Cart</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>© 2024 FreshKart India. All rights reserved.</p>
+    <p>Email: hello@freshkart.in</p>
+    <!-- Deliberately NO: refund policy, privacy policy, T&C links, GST number, phone, address -->
+  </footer>
+  <script src="/assets/main.js"></script>
+</body>
+</html>

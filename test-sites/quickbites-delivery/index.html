@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QuickBites - Food Delivery</title>
+  <link rel="stylesheet" href="/assets/style.css">
+  <!-- 8 scripts without SRI -->
+  <script src="https://www.google-analytics.com/analytics.js"></script>
+  <script src="https://connect.facebook.net/en_US/fbevents.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://static.hotjar.com/c/hotjar-99999.js"></script>
+  <script src="https://widget.intercom.io/widget/qb123"></script>
+  <script src="https://cdn.onesignal.com/sdks/OneSignalSDK.js"></script>
+  <script src="https://platform.twitter.com/widgets.js"></script>
+  <script src="https://cdn.amplitude.com/libs/amplitude-8.21.4-min.gz.js"></script>
+  <script>
+    // Inline analytics
+    amplitude.getInstance().init('YOUR_API_KEY');
+  </script>
+</head>
+<body>
+  <header>
+    <nav>
+      <div class="logo"><a href="/">🍔 QuickBites</a></div>
+      <ul>
+        <li><a href="/menu.html">Menu</a></li>
+        <li><a href="/privacy.html">Privacy</a></li>
+        <li><a href="/contact.html">Contact</a></li>
+        <li><a href="/order.html">Order Now</a></li>
+      </ul>
+    </nav>
+  </header>
+  <main>
+    <section class="hero">
+      <h1>Delicious Food, Delivered Fast</h1>
+      <p>Order food online from your favourite restaurants. Delivered in 30 minutes.</p>
+      <a href="/menu.html" class="btn">Order Now</a>
+    </section>
+    <section class="how">
+      <h2>How It Works</h2>
+      <div class="grid">
+        <div class="card"><h3>1. Browse</h3><p>Choose from 500+ restaurants in your city.</p></div>
+        <div class="card"><h3>2. Order</h3><p>Select your items and pay securely online.</p></div>
+        <div class="card"><h3>3. Track</h3><p>Live GPS tracking of your delivery rider.</p></div>
+      </div>
+    </section>
+  </main>
+  <footer>
+    <p>© 2024 QuickBites | <a href="/privacy.html">Privacy Policy</a> | <a href="/contact.html">Contact</a></p>
+    <!-- Deliberately: NO refund policy, NO T&C, NO GST, US-style address in contact -->
+  </footer>
+  <script src="/assets/main.js"></script>
+</body>
+</html>

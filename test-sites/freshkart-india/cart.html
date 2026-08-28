@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cart & Checkout - FreshKart India</title>
+  <link rel="stylesheet" href="/assets/style.css">
+  <!-- Payment page: extra scripts, still no SRI, no PCI compliance -->
+  <script src="https://www.googletagmanager.com/gtag/js?id=GA-XXXXX"></script>
+  <script src="https://connect.facebook.net/en_US/fbevents.js"></script>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <script src="https://cdn.segment.com/analytics.js/v1/key/analytics.min.js"></script>
+  <script src="https://static.hotjar.com/c/hotjar-123456.js"></script>
+</head>
+<body>
+  <header>
+    <nav>
+      <div class="logo"><a href="/">🥦 FreshKart India</a></div>
+      <ul>
+        <li><a href="/products.html">Products</a></li>
+        <li><a href="/cart.html">Cart</a></li>
+        <li><a href="/contact.html">Contact</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <section class="page-content">
+      <h1>Your Cart</h1>
+
+      <div class="cart-container">
+        <div class="cart-items" id="cartItems">
+          <div class="cart-item">
+            <span>Tomatoes 1kg</span>
+            <span>₹45</span>
+            <button onclick="removeItem(this)">Remove</button>
+          </div>
+          <div class="cart-item">
+            <span>Apples 1kg</span>
+            <span>₹180</span>
+            <button onclick="removeItem(this)">Remove</button>
+          </div>
+        </div>
+
+        <div class="cart-summary">
+          <h3>Order Summary</h3>
+          <p>Subtotal: ₹225</p>
+          <p>Delivery: ₹30</p>
+          <p><strong>Total: ₹255</strong></p>
+
+          <div class="checkout-form">
+            <h3>Delivery Details</h3>
+            <input type="text" placeholder="Full Name" required>
+            <input type="text" placeholder="Phone Number" required>
+            <input type="text" placeholder="Delivery Address" required>
+            <input type="text" placeholder="Pincode" required>
+            <button class="btn" onclick="initiatePayment()">Pay ₹255</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- No refund policy link at checkout — RBI violation -->
+    </section>
+  </main>
+
+  <footer>
+    <p>© 2024 FreshKart India. All rights reserved.</p>
+  </footer>
+  <script src="/assets/main.js"></script>
+  <script>
+    function initiatePayment() {
+      var options = {
+        key: 'rzp_test_xxxxxxxx',
+        amount: 25500,
+        currency: 'INR',
+        name: 'FreshKart India',
+        description: 'Fresh Produce Order',
+        handler: function(response) {
+          window.location.href = '/success.html';
+        }
+      };
+      var rzp = new Razorpay(options);
+      rzp.open();
+    }
+  </script>
+</body>
+</html>
