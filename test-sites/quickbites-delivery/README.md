@@ -1,25 +1,36 @@
-# QuickBites Delivery — Synthetic Test Site (Grade D)
+# QuickBites Delivery — Grade D Test Site
 
-Deliberately non-compliant food delivery site used to test MCIE gap detection.
+Synthetic food delivery site for MCIE ground-truth validation. KYC mismatches + missing policies.
 
-## Planted compliance gaps
+## Compliance summary
 
-| Gap | Location | Expected finding |
-|-----|----------|-----------------|
-| Copy-paste privacy policy | privacy.html | Mentions "FoodZapp Private Limited" instead of QuickBites |
-| US address (not India) | contact.html | RBI requires Indian address; this has a San Francisco address |
-| No refund policy | (missing) | RBI-001 fails — food delivery must publish refund/cancellation policy |
-| No T&C | (missing) | RBI-003 fails |
-| No GST number | index.html footer | RBI-005 fails |
-| 8 scripts without SRI | index.html | PCI-001/PCI-002 fail — including Facebook, Hotjar, Intercom, Amplitude |
-| Minimal security headers | vercel.json | Only X-Content-Type-Options; missing CSP, HSTS, X-Frame-Options |
+| Check | Result | Notes |
+|-------|--------|-------|
+| RBI-001 Refund Policy | FAIL | Missing entirely |
+| RBI-002 Privacy Policy | PARTIAL | Exists but copy-paste boilerplate, quality < 3/10 |
+| RBI-003 T&C | FAIL | Missing |
+| RBI-004 Contact Info | PARTIAL | Email + phone but NO physical address |
+| RBI-005 GST Display | FAIL | No GSTIN shown |
+| PCI-002 SRI | FAIL | 6+ scripts without SRI |
+| PCI-004 CSP Header | FAIL | Not set |
+| PCI-005 Security Headers | FAIL | None set |
 
-## Expected score range
+## KYC inputs (for ground-truth test)
 
-Score: 15–40 | Grade: D
+- PAN name: QuickBites Pvt. Ltd.
+- GST legal name: QUICKBITES PRIVATE LIMITED
+- Bank account name: Quick Bites Private Limited
 
-## To serve locally
+KYC mismatches:
+1. "QuickBites" vs "Quick Bites" — spacing difference in bank name
+2. "Pvt. Ltd." vs "PRIVATE LIMITED" — abbreviation mismatch (known pattern, forces match=False even at high similarity)
 
-```bash
-npx serve . -p 4004
-```
+KYC: overall_consistent = false, issues_count >= 2
+
+## Expected output
+
+- Grade: D
+- Score: 15-40
+- RBI: 0-1/5 (contact partial at best)
+- KYC: overall_consistent = false
+- Critical gaps: 3+

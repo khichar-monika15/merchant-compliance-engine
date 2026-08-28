@@ -1,29 +1,33 @@
-# Artisan Weaves — Synthetic Test Site (Grade B)
+# Artisan Weaves — Grade B Test Site
 
-Nearly-compliant Shopify-style handcraft e-commerce site. Has most compliance requirements in place with one deliberate gap.
+Synthetic handloom e-commerce site for MCIE ground-truth validation. Nearly compliant — missing CSP.
 
-## Planted compliance gap
+## Compliance summary
 
-| Gap | Location | Expected finding |
-|-----|----------|-----------------|
-| Missing Referrer-Policy header | vercel.json | Has CSP + HSTS + X-Frame-Options:DENY + X-Content-Type-Options, but NO Referrer-Policy |
-| Facebook Pixel without SRI | index.html | fbevents.js has no integrity attribute; 3 other scripts DO have SRI |
+| Check | Result | Notes |
+|-------|--------|-------|
+| RBI-001 Refund Policy | PASS | 7-day return window, clear process, timeline specified |
+| RBI-002 Privacy Policy | PASS | Comprehensive, mentions DPDP Act 2023 |
+| RBI-003 T&C | PASS | Full terms page including governing law |
+| RBI-004 Contact Info | PASS | Full address (Lucknow UP), phone, email |
+| RBI-005 GST Display | PASS | GSTIN: 09ABCAW1234A1Z5 visible on multiple pages |
+| PCI-002 SRI | PARTIAL | GTM and jQuery have SRI; Facebook Pixel does not |
+| PCI-004 CSP Header | FAIL | Not set (the only major gap) |
+| PCI-005 Security Headers | PASS | HSTS, X-Frame-Options: DENY, X-Content-Type-Options, Referrer-Policy all set |
 
-## What is correct
+## KYC inputs (for ground-truth test)
 
-- Refund policy: clear 7-day return window, condition requirements, process steps
-- Privacy policy: DPDP Act 2023 compliant, data categories, third-party disclosure
-- Terms and conditions: governing law (Karnataka), dispute resolution, liability cap
-- Contact page: full Indian address (Bengaluru), +91 phone, email, working hours
-- GST number: 29ABCAW1234F1Z7 in footer (valid format for Karnataka)
-- Tech stack: Shopify detected via shopify-section classes and cdn.shopify.com scripts
+- PAN name: Artisan Weaves Private Limited
+- GST legal name: ARTISAN WEAVES PRIVATE LIMITED
+- Bank account name: Artisan Weaves Private Limited
 
-## Expected score range
+KYC: PASS (all three normalize to the same name).
 
-Score: 70–90 | Grade: B
+## Expected output
 
-## To serve locally
-
-```bash
-npx serve . -p 4001
-```
+- Grade: B
+- Score: 75-92
+- RBI: 5/5 pass
+- PCI: partial deduction for missing CSP and Facebook Pixel without SRI
+- KYC: overall_consistent = true
+- Critical gaps: 1 (missing CSP header)

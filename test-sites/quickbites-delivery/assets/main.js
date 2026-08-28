@@ -1,10 +1,8 @@
-// QuickBites — minimal UI interactions
-document.addEventListener('DOMContentLoaded', function () {
-  const orderBtn = document.querySelector('.btn');
-  if (orderBtn) {
-    orderBtn.addEventListener('click', function (e) {
+// QuickBites — main.js
+document.querySelectorAll('.btn').forEach(function(btn) {
+  btn.addEventListener('click', function(e) {
+    if (this.textContent === 'Order Now') {
       e.preventDefault();
-      alert('Ordering feature coming soon!');
-    });
-  }
+    }
+  });
 });

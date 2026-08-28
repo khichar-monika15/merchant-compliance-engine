@@ -3,20 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>QuickBites - Food Delivery</title>
+  <title>QuickBites - Food Delivery App</title>
   <link rel="stylesheet" href="/assets/style.css">
-  <!-- 8 scripts without SRI -->
-  <script src="https://www.google-analytics.com/analytics.js"></script>
+  <!-- Multiple scripts without SRI — PCI violations -->
+  <script src="https://www.googletagmanager.com/gtag/js?id=GA-QBITES"></script>
   <script src="https://connect.facebook.net/en_US/fbevents.js"></script>
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <script src="https://static.hotjar.com/c/hotjar-99999.js"></script>
-  <script src="https://widget.intercom.io/widget/qb123"></script>
-  <script src="https://cdn.onesignal.com/sdks/OneSignalSDK.js"></script>
+  <script src="https://static.hotjar.com/c/hotjar-789012.js"></script>
+  <script src="https://cdn.segment.com/analytics.js/v1/qb/analytics.min.js"></script>
+  <script src="https://widget.intercom.io/widget/qb456"></script>
   <script src="https://platform.twitter.com/widgets.js"></script>
-  <script src="https://cdn.amplitude.com/libs/amplitude-8.21.4-min.gz.js"></script>
   <script>
-    // Inline analytics
-    amplitude.getInstance().init('YOUR_API_KEY');
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'GA-QBITES');
+    fbq('init', '111222333');
   </script>
 </head>
 <body>
@@ -27,29 +28,40 @@
         <li><a href="/menu.html">Menu</a></li>
         <li><a href="/privacy.html">Privacy</a></li>
         <li><a href="/contact.html">Contact</a></li>
-        <li><a href="/order.html">Order Now</a></li>
+        <li><a href="#" class="cta">Order Now</a></li>
       </ul>
     </nav>
   </header>
+
   <main>
     <section class="hero">
-      <h1>Delicious Food, Delivered Fast</h1>
-      <p>Order food online from your favourite restaurants. Delivered in 30 minutes.</p>
-      <a href="/menu.html" class="btn">Order Now</a>
+      <h1>Hot Food Delivered in 30 Minutes</h1>
+      <p>200+ restaurants, 2,000+ dishes. Your favourite food at your doorstep.</p>
+      <div class="search-box">
+        <input type="text" placeholder="Enter your delivery address...">
+        <button class="btn">Find Food</button>
+      </div>
     </section>
-    <section class="how">
-      <h2>How It Works</h2>
-      <div class="grid">
-        <div class="card"><h3>1. Browse</h3><p>Choose from 500+ restaurants in your city.</p></div>
-        <div class="card"><h3>2. Order</h3><p>Select your items and pay securely online.</p></div>
-        <div class="card"><h3>3. Track</h3><p>Live GPS tracking of your delivery rider.</p></div>
+
+    <section class="categories">
+      <h2>What are you craving?</h2>
+      <div class="cuisine-grid">
+        <div class="cuisine-card">🍕 Pizza</div>
+        <div class="cuisine-card">🍜 Chinese</div>
+        <div class="cuisine-card">🍛 Biryani</div>
+        <div class="cuisine-card">🍔 Burgers</div>
+        <div class="cuisine-card">🥗 Salads</div>
+        <div class="cuisine-card">🍰 Desserts</div>
       </div>
     </section>
   </main>
+
   <footer>
-    <p>© 2024 QuickBites | <a href="/privacy.html">Privacy Policy</a> | <a href="/contact.html">Contact</a></p>
-    <!-- Deliberately: NO refund policy, NO T&C, NO GST, US-style address in contact -->
+    <p>© 2024 QuickBites Pvt. Ltd. All rights reserved.</p>
+    <p><a href="/privacy.html">Privacy Policy</a></p>
+    <!-- No refund policy, no T&C, no GST, incomplete contact -->
   </footer>
+
   <script src="/assets/main.js"></script>
 </body>
 </html>

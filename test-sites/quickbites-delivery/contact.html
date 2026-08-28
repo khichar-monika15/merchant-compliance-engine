@@ -2,19 +2,35 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Contact - QuickBites</title>
   <link rel="stylesheet" href="/assets/style.css">
 </head>
 <body>
-  <header><nav><a href="/">🍔 QuickBites</a></nav></header>
+  <header>
+    <nav>
+      <div class="logo"><a href="/">🍔 QuickBites</a></div>
+    </nav>
+  </header>
+
   <main>
-    <h1>Contact Us</h1>
-    <!-- DELIBERATELY PLANTED ISSUE: US address instead of Indian address -->
-    <p>Email: <a href="mailto:support@quickbites.app">support@quickbites.app</a></p>
-    <p>Address: 123 Market Street, San Francisco, CA 94102, United States</p>
-    <p>Phone: +1 415 555 0100</p>
-    <!-- US phone number and US address will trigger RBI contact info failure -->
+    <section class="page-content">
+      <h1>Contact Us</h1>
+
+      <!-- Partial contact info — has email and phone but NO physical address -->
+      <div class="contact-info">
+        <p><strong>Email:</strong> help@quickbites.in</p>
+        <p><strong>Phone:</strong> +91-98765-43210</p>
+        <!-- Deliberately NO physical address -->
+        <!-- No GST number -->
+      </div>
+
+      <p>For order issues, open the app and go to Order History > Help.</p>
+    </section>
   </main>
-  <footer><p>© 2024 QuickBites</p></footer>
+
+  <footer>
+    <p>© 2024 QuickBites Pvt. Ltd.</p>
+  </footer>
 </body>
 </html>
