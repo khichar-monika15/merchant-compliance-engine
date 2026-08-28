@@ -1,0 +1,31 @@
+{
+  "site": "artisan-weaves",
+  "kyc_input": {
+    "pan_name": "Artisan Weaves Private Limited",
+    "gst_name": "ARTISAN WEAVES PRIVATE LIMITED",
+    "bank_name": "Artisan Weaves Private Limited"
+  },
+  "expected_score_range": [70, 90],
+  "expected_grade": "B",
+  "compliance_expected": {
+    "refund_policy": {"found": true, "quality_score_min": 6},
+    "privacy_policy": {"found": true, "quality_score_min": 6},
+    "terms_conditions": {"found": true, "quality_score_min": 6},
+    "contact_info": {"found": true, "has_address": true, "has_phone": true, "has_email": true},
+    "gst_display": {"found": true}
+  },
+  "pci_expected": {
+    "total_scripts_max": 6,
+    "third_party_scripts_max": 5,
+    "scripts_without_sri_max": 1,
+    "csp_present": true,
+    "hsts_present": true,
+    "referrer_policy_present": false
+  },
+  "kyc_expected": {
+    "overall_consistent": true,
+    "issues_max_count": 0
+  },
+  "critical_gaps_max": 1,
+  "notes": "Grade B test site — nearly compliant, missing only Referrer-Policy"
+}

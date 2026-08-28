@@ -1,0 +1,27 @@
+{
+  "site": "quickbites-delivery",
+  "kyc_input": {
+    "pan_name": "QuickBites Pvt. Ltd.",
+    "gst_name": "QUICKBITES PRIVATE LIMITED",
+    "bank_name": "Quick Bites Private Limited"
+  },
+  "expected_score_range": [15, 40],
+  "expected_grade": "D",
+  "compliance_expected": {
+    "refund_policy": {"found": false},
+    "privacy_policy": {"found": true, "quality_score_max": 3},
+    "terms_conditions": {"found": false},
+    "contact_info": {"found": true, "has_address": false},
+    "gst_display": {"found": false}
+  },
+  "pci_expected": {
+    "scripts_without_sri_min": 6,
+    "csp_present": false
+  },
+  "kyc_expected": {
+    "overall_consistent": false,
+    "issues_min_count": 2
+  },
+  "critical_gaps_min": 3,
+  "notes": "Grade D test site — KYC name mismatches, copy-paste privacy policy, no refund/T&C"
+}

@@ -1,0 +1,26 @@
+{
+  "site": "clouddesk-saas",
+  "kyc_input": {
+    "pan_name": "CloudDesk Solutions Private Limited",
+    "gst_name": "CLOUDDESK SOLUTIONS PRIVATE LIMITED",
+    "bank_name": "CloudDesk Solutions Private Limited"
+  },
+  "expected_score_range": [35, 60],
+  "expected_grade": "C",
+  "compliance_expected": {
+    "refund_policy": {"found": true, "quality_score_max": 4},
+    "privacy_policy": {"found": true, "quality_score_max": 5},
+    "terms_conditions": {"found": false},
+    "contact_info": {"found": true},
+    "gst_display": {"found": false}
+  },
+  "pci_expected": {
+    "csp_present": false,
+    "hsts_present": false
+  },
+  "kyc_expected": {
+    "overall_consistent": true
+  },
+  "critical_gaps_min": 2,
+  "notes": "Grade C test site — thin policies, missing T&C and GST"
+}
