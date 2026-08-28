@@ -6,12 +6,17 @@ import { IntegrationResult } from '../types'
 const LANG_MAP: Record<string, string> = {
   tsx: 'tsx',
   ts: 'typescript',
+  typescript: 'typescript',
   jsx: 'jsx',
   js: 'javascript',
+  javascript: 'javascript',
   py: 'python',
+  python: 'python',
   php: 'php',
   html: 'html',
   vue: 'html',
+  markdown: 'markdown',
+  text: 'text',
 }
 
 interface Props {

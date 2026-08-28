@@ -57,11 +57,7 @@ async def run(state: EngineState) -> dict:
         test_payment = create_order(amount_paise=100, notes={"purpose": "MCIE integration test"})
 
         result = IntegrationResult(
-            detected_stack={
-                "primary": primary_stack,
-                "evidence": tech_signals.get(primary_stack, []),
-                "all_detected": list(tech_signals.keys()),
-            },
+            detected_stack=tech_signals,  # {stack_name: [evidence_strings]} — Record<string, string[]>
             recommended_product=rec.get("product", "Razorpay Standard Checkout"),
             integration_method=rec.get("integration_method", "standard_checkout"),
             starter_code=starter_code,

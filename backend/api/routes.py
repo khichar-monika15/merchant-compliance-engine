@@ -43,9 +43,7 @@ async def _run_scan_job(job_id: str, merchant_input: MerchantInput) -> None:
     await progress_callback("Orchestrator", "Starting compliance scan", 5)
 
     try:
-        await progress_callback("WebCrawler", "Crawling merchant website", 15)
-        state = await run_pipeline(merchant_input)
-        await progress_callback("ReportGenerator", "Generating readiness report", 95)
+        state = await run_pipeline(merchant_input, progress_fn=progress_callback)
 
         _jobs[job_id]["status"] = "completed"
         _jobs[job_id]["report"] = state.readiness_report

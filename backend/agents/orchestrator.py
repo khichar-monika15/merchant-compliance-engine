@@ -152,16 +152,46 @@ def _serialise(update: dict) -> dict:
     return result
 
 
-def build_workflow():
+def build_workflow(progress_fn=None):
     """Build and compile the LangGraph StateGraph for the MCIE pipeline."""
-    # Use plain dict as state type (LangGraph 0.2.x compatible)
-    workflow = StateGraph(dict)
 
+    async def _emit(agent: str, message: str, pct: int) -> None:
+        if progress_fn:
+            await progress_fn(agent, message, pct)
+
+    async def _crawl_node(state: dict) -> dict:
+        await _emit("WebCrawler", "Crawling merchant website", 15)
+        result = await _crawl(state)
+        await _emit("WebCrawler", "Website crawl complete", 30)
+        return result
+
+    async def _parallel_node(state: dict) -> dict:
+        await _emit("ComplianceAuditor", "Auditing RBI policy compliance", 40)
+        await _emit("PCIScanner", "Scanning PCI DSS surface", 40)
+        await _emit("KYCValidator", "Validating KYC name consistency", 40)
+        await _emit("IntegrationAdvisor", "Detecting tech stack", 40)
+        result = await _parallel_analysis(state)
+        await _emit("ComplianceAuditor", "Compliance audit complete", 65)
+        return result
+
+    async def _policies_node(state: dict) -> dict:
+        await _emit("PolicyGenerator", "Generating missing policies", 75)
+        result = await _generate_policies(state)
+        await _emit("PolicyGenerator", "Policy generation complete", 85)
+        return result
+
+    async def _report_node(state: dict) -> dict:
+        await _emit("ReportGenerator", "Generating readiness report", 90)
+        result = await _generate_report(state)
+        await _emit("ReportGenerator", "Report generation complete", 98)
+        return result
+
+    workflow = StateGraph(dict)
     workflow.add_node("validate_input", _validate_input)
-    workflow.add_node("crawl_website", _crawl)
-    workflow.add_node("parallel_analysis", _parallel_analysis)
-    workflow.add_node("generate_policies", _generate_policies)
-    workflow.add_node("generate_report", _generate_report)
+    workflow.add_node("crawl_website", _crawl_node)
+    workflow.add_node("parallel_analysis", _parallel_node)
+    workflow.add_node("generate_policies", _policies_node)
+    workflow.add_node("generate_report", _report_node)
 
     workflow.set_entry_point("validate_input")
     workflow.add_edge("validate_input", "crawl_website")
@@ -184,9 +214,9 @@ def build_workflow():
     return workflow.compile()
 
 
-async def run_pipeline(merchant_input: MerchantInput) -> EngineState:
+async def run_pipeline(merchant_input: MerchantInput, progress_fn=None) -> EngineState:
     """Run the full compliance pipeline for a merchant and return the final state."""
-    app = build_workflow()
+    app = build_workflow(progress_fn=progress_fn)
     initial_state = _state_to_dict(EngineState(merchant_input=merchant_input))
     final_state = await app.ainvoke(initial_state)
     return _dict_to_state(final_state)
