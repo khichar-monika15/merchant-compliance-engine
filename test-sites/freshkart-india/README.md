@@ -27,8 +27,12 @@ All three diverge — "Pvt. Ltd." vs "PRIVATE LIMITED" vs extra space "Fresh Kar
 
 ## Expected output
 
+Served locally on port 4001:
+
 - Grade: F
-- Score: 10-25
-- All 5 RBI checks: FAIL
-- PCI score: near 0 (no headers, no SRI)
-- KYC: overall_consistent = false
+- Score: 24 (expected range 12-24)
+- RBI: 20 — only the contact page passes; the sole GSTIN on the site sits inside an HTML
+  comment and must not count as displayed
+- PCI: 20 — no headers, 18 third-party scripts with 17 lacking SRI
+- KYC: overall_consistent = false (5 mismatches)
+- Critical gaps: 11

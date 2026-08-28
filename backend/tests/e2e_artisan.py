@@ -1,7 +1,9 @@
-"""End-to-end test: run the MCIE pipeline against artisan-weaves (Grade B expected)."""
-import asyncio, os, json
-os.environ["LLM_MODEL"] = "qwen.qwen3-32b"
-import backend.config as _cfg; _cfg.get_settings.cache_clear()
+"""End-to-end smoke run against artisan-weaves (Grade B expected).
+
+Serve the site first:  npx serve test-sites/artisan-weaves -p 4004
+Then:                  uv run python -m backend.tests.e2e_artisan
+"""
+import asyncio
 
 from backend.agents.orchestrator import run_pipeline
 from backend.models.schemas import MerchantInput
@@ -9,7 +11,7 @@ from backend.models.schemas import MerchantInput
 
 async def main():
     merchant = MerchantInput(
-        website_url="http://localhost:4001",
+        website_url="http://127.0.0.1:4004",
         pan_name="Artisan Weaves Private Limited",
         gst_legal_name="ARTISAN WEAVES PRIVATE LIMITED",
         bank_account_name="Artisan Weaves Private Limited",
@@ -44,4 +46,5 @@ async def main():
     print(f"Fix time: {rr.estimated_fix_time}")
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())

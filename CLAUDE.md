@@ -33,31 +33,42 @@ uv run pytest backend/tests/ -v
 # Playwright browsers
 uv run playwright install chromium
 
-# Full ground-truth validation
+# Full ground-truth validation (serve all 4 test sites first — see below)
 uv run python -m backend.tests.validate_ground_truth
 ```
 
 ## Test sites (synthetic)
 
-- `test-sites/freshkart-india/` — Grade F (every major gap planted)
-- `test-sites/clouddesk-saas/` — Grade C (thin policies)
-- `test-sites/artisan-weaves/` — Grade B (nearly ready)
-- `test-sites/quickbites-delivery/` — Grade D (KYC mismatches, copy-paste policy)
+Serve on these ports — `validate_ground_truth.py` and the docs all assume them.
+
+- `test-sites/freshkart-india/` — port 4001 — 24 / Grade F (every major gap planted)
+- `test-sites/quickbites-delivery/` — port 4002 — 36 / Grade D (KYC mismatches, copy-paste policy)
+- `test-sites/clouddesk-saas/` — port 4003 — 52 / Grade C (thin policies)
+- `test-sites/artisan-weaves/` — port 4004 — 85 / Grade B (nearly ready)
+
+Served locally the `vercel.json` security headers do not apply, so all four report their headers
+as missing. Ground truth encodes the local-serving values.
 
 ## Environment
 
 - Python 3.12 (uv-managed)
 - Node 24+
-- Needs `.env` with either:
+- `.env` is optional. Without it the engine still runs: policy quality falls back to rule-based
+  scoring and the report records that the LLM was unavailable.
   - `OPENAI_API_KEY` + `OPENAI_BASE_URL` (Bedrock mantle, default) + `LLM_MODEL=qwen.qwen3-32b`
-  - or `ANTHROPIC_API_KEY` (direct Anthropic API)
-- Also set `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` (test keys with `rzp_test_` prefix)
+  - or `ANTHROPIC_API_KEY` + `ANTHROPIC_MODEL` (direct Anthropic API)
+- `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` (test keys, `rzp_test_` prefix) are optional too —
+  without them the test order fails and integration scores 70 instead of 100.
 
 ## Conventions
 
 - All agents export `async run(state: EngineState) -> dict` returning partial state updates
 - Every agent appends to `audit_log` with timestamps
-- Compliance checks ground in `backend/knowledge/*.json` — never LLM memory alone
+- Compliance checks ground in `backend/knowledge/*.json` — never LLM memory alone. RBI checks read
+  `rbi_mdd_checklist.json`; PCI scoring reads its deduction constants from
+  `pci_dss_surface_checks.json`
+- The LLM refines policy quality scores; it never gates them. Every score has a rule-based fallback
+  so a run without credentials still produces an honest report
 - Graceful failure: one agent error must not block others
 - LangGraph parallel execution via `asyncio.gather()` inside a single `parallel_analysis` node
 - Git identity: khichar-monika15

@@ -19,9 +19,17 @@ Partially compliant SaaS customer support platform. Has some policies but they'r
 - Company name consistent: "CloudDesk Solutions Private Limited" throughout
 - Some security headers present (partial credit)
 
-## Expected score range
+## Expected output
 
-Score: 35–60 | Grade: C
+Served locally on port 4003:
+
+- Grade: C
+- Score: 52 (expected range 50-68)
+- RBI: 20 — refund and privacy exist but are 40-60 word stubs and score as inadequate,
+  not missing; T&C and GSTIN are absent
+- PCI: 46 — 3 third-party scripts, none with SRI
+- KYC: overall_consistent = true
+- Critical gaps: 5
 
 ## To serve locally
 

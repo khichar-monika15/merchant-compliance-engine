@@ -29,8 +29,11 @@ KYC: overall_consistent = false, issues_count >= 2
 
 ## Expected output
 
+Served locally on port 4002:
+
 - Grade: D
-- Score: 15-40
-- RBI: 0-1/5 (contact partial at best)
-- KYC: overall_consistent = false
-- Critical gaps: 3+
+- Score: 36 (expected range 25-45)
+- RBI: 40 — contact passes, the copy-paste privacy policy scores low, refund and T&C are absent
+- PCI: 37 — 6 third-party scripts, none with SRI
+- KYC: overall_consistent = false (5 mismatches)
+- Critical gaps: 10

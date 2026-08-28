@@ -25,9 +25,15 @@ KYC: PASS (all three normalize to the same name).
 
 ## Expected output
 
+Served locally on port 4004:
+
 - Grade: B
-- Score: 75-92
+- Score: 85 (expected range 76-89)
 - RBI: 5/5 pass
-- PCI: partial deduction for missing CSP and Facebook Pixel without SRI
+- PCI: 52 — deductions for the missing CSP and the Facebook Pixel without SRI
 - KYC: overall_consistent = true
-- Critical gaps: 1 (missing CSP header)
+- Critical gaps: 3
+
+Note: served locally the `vercel.json` headers do not apply, so HSTS, X-Frame-Options,
+X-Content-Type-Options and Referrer-Policy also report as missing. Deployed to Vercel only the
+CSP is absent.
