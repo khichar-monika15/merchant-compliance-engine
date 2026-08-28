@@ -26,21 +26,29 @@ def _load_rbi_db() -> dict:
         return json.load(f)
 
 
+def _html_to_text(html: str) -> str:
+    """Strip HTML tags and decode entities for plain-text keyword matching."""
+    from bs4 import BeautifulSoup
+    text = BeautifulSoup(html, "lxml").get_text(" ", strip=True)
+    # Normalize & so "Terms & Conditions" matches "terms and conditions"
+    return re.sub(r"\s*&\s*", " and ", text)
+
+
 def _search_page_for_policy(html: str, check: dict) -> tuple[bool, int]:
     """Rule-based: search for policy presence and estimate quality score."""
+    text = _html_to_text(html)
     body_keywords = check["search"].get("body_keywords", [])
-    found_keywords = sum(1 for kw in body_keywords if kw.lower() in html.lower())
+    found_keywords = sum(1 for kw in body_keywords if kw.lower() in text.lower())
     found = found_keywords >= 2
 
     if not found:
         return False, 0
 
-    # Estimate quality: word count proxy and topic coverage
-    word_count = len(html.split())
+    word_count = len(text.split())
     min_words = check.get("quality_criteria", {}).get("min_word_count", 100)
     red_flags = check.get("quality_criteria", {}).get("red_flags", [])
 
-    if any(rf.lower() in html.lower() for rf in red_flags):
+    if any(rf.lower() in text.lower() for rf in red_flags):
         return True, 2  # Present but placeholder/template
 
     quality = min(10, max(2, int((found_keywords / max(len(body_keywords), 1)) * 8 + (2 if word_count > min_words else 0))))
@@ -150,7 +158,7 @@ async def run(state: EngineState) -> dict:
             llm_issues: list[str] = []
             if found:
                 business_type = state.merchant_input.business_type or "unknown"
-                quality_score, details = await _llm_quality_score(page_html, check_def["name"], business_type)
+                quality_score, details = await _llm_quality_score(_html_to_text(page_html), check_def["name"], business_type)
                 if quality_score < 5:
                     llm_issues.append(f"Policy content appears inadequate: {details}")
 
