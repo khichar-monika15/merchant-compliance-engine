@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Pay with Razorpay</title>
+</head>
+<body>
+  <h1>Complete Your Payment</h1>
+  <button id="pay-btn">Pay ₹100</button>
+
+  <!-- Step 1: Load Razorpay checkout script -->
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+  <script>
+    document.getElementById('pay-btn').addEventListener('click', async () => {
+      // Step 2: Create order on your server
+      const res = await fetch('/api/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: 10000, currency: 'INR' }) // amount in paise
+      });
+      const order = await res.json();
+
+      // Step 3: Open Razorpay checkout
+      const options = {
+        key: 'rzp_test_YOUR_KEY_ID',   // Replace with your test key
+        amount: order.amount,
+        currency: order.currency,
+        name: 'Your Store Name',
+        description: 'Purchase Description',
+        order_id: order.id,
+        handler: function (response) {
+          // Step 4: Verify payment on server
+          fetch('/api/verify-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature
+            })
+          }).then(() => alert('Payment successful!'));
+        },
+        prefill: { name: '', email: '', contact: '' },
+        theme: { color: '#528FF0' }
+      };
+
+      const rzp = new Razorpay(options);
+      rzp.open();
+    });
+  </script>
+</body>
+</html>

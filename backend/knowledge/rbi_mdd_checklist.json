@@ -1,0 +1,158 @@
+{
+  "version": "1.0",
+  "source": "RBI Master Directions on Payment Aggregators — September 2025",
+  "checks": [
+    {
+      "id": "RBI-001",
+      "category": "Policy Disclosure",
+      "name": "Refund / Cancellation Policy",
+      "severity": "critical",
+      "description": "Merchants must display a clear refund and cancellation policy accessible from the website.",
+      "detection_strategy": "page_search",
+      "search": {
+        "url_patterns": ["/refund", "/return", "/cancellation", "/refund-policy", "/return-policy", "/cancel", "/money-back"],
+        "link_text_patterns": ["refund", "return", "cancellation", "money back", "cancel policy"],
+        "footer_patterns": ["refund policy", "return policy", "cancellation policy"],
+        "body_keywords": ["refund", "cancellation", "return policy", "money back guarantee"]
+      },
+      "quality_criteria": {
+        "min_word_count": 150,
+        "must_contain_topics": ["timeline", "eligibility", "process", "contact"],
+        "red_flags": ["lorem ipsum", "coming soon", "under construction", "tbd"]
+      },
+      "business_type_variations": {
+        "ecommerce": {"extra_topics": ["shipping", "damaged goods", "original condition"]},
+        "saas": {"extra_topics": ["subscription", "pro-rata", "trial period"]},
+        "services": {"extra_topics": ["service delivery", "work completed"]}
+      }
+    },
+    {
+      "id": "RBI-002",
+      "category": "Privacy",
+      "name": "Privacy Policy",
+      "severity": "critical",
+      "description": "Merchants must publish a privacy policy covering data collection, usage, and sharing under Indian law (IT Act 2000, DPDP Act 2023).",
+      "detection_strategy": "page_search",
+      "search": {
+        "url_patterns": ["/privacy", "/privacy-policy", "/data-policy", "/data-protection"],
+        "link_text_patterns": ["privacy", "data policy", "privacy policy"],
+        "footer_patterns": ["privacy policy", "privacy notice"],
+        "body_keywords": ["personal data", "data collection", "information we collect", "your privacy", "cookies"]
+      },
+      "quality_criteria": {
+        "min_word_count": 300,
+        "must_contain_topics": ["data collection", "purpose", "storage", "sharing", "user rights", "contact"],
+        "red_flags": ["lorem ipsum", "sample privacy policy", "template", "another company"]
+      },
+      "business_type_variations": {
+        "ecommerce": {"extra_topics": ["payment data", "shipping address", "order history"]},
+        "saas": {"extra_topics": ["account data", "usage analytics", "third-party integrations"]},
+        "services": {"extra_topics": ["client data", "project files"]}
+      }
+    },
+    {
+      "id": "RBI-003",
+      "category": "Legal",
+      "name": "Terms and Conditions",
+      "severity": "critical",
+      "description": "Merchants must publish comprehensive terms of service with Indian governing law.",
+      "detection_strategy": "page_search",
+      "search": {
+        "url_patterns": ["/terms", "/tos", "/terms-and-conditions", "/terms-of-service", "/terms-of-use", "/legal"],
+        "link_text_patterns": ["terms", "conditions", "terms of service", "tos", "terms of use"],
+        "footer_patterns": ["terms and conditions", "terms of service", "terms of use"],
+        "body_keywords": ["terms of service", "terms and conditions", "user agreement", "governing law", "dispute resolution"]
+      },
+      "quality_criteria": {
+        "min_word_count": 300,
+        "must_contain_topics": ["user obligations", "service description", "payment terms", "liability", "governing law"],
+        "red_flags": ["lorem ipsum", "template", "insert company name", "another company"]
+      },
+      "business_type_variations": {
+        "ecommerce": {"extra_topics": ["product listing", "intellectual property", "order fulfilment"]},
+        "saas": {"extra_topics": ["subscription", "API usage", "uptime SLA"]},
+        "services": {"extra_topics": ["scope of work", "deliverables", "payment schedule"]}
+      }
+    },
+    {
+      "id": "RBI-004",
+      "category": "Contact",
+      "name": "Contact Information",
+      "severity": "critical",
+      "description": "Merchants must display full contact information including a physical Indian business address, phone number, and email.",
+      "detection_strategy": "content_search",
+      "search": {
+        "url_patterns": ["/contact", "/contact-us", "/reach-us", "/get-in-touch", "/support", "/help"],
+        "link_text_patterns": ["contact", "reach us", "get in touch", "help", "support"],
+        "footer_patterns": ["contact us", "address", "email", "phone", "tel:"],
+        "body_keywords": ["address", "phone", "email", "contact us", "reach us"]
+      },
+      "quality_criteria": {
+        "required_elements": {
+          "physical_address": {
+            "patterns": ["\\d+.*?(road|street|avenue|lane|nagar|colony|sector|block|near|opp|beside|floor|building|tower|complex|market|bazaar|gali|mohalla|chowk)", "(?:bangalore|bengaluru|mumbai|delhi|chennai|hyderabad|pune|kolkata|ahmedabad|jaipur|surat|lucknow|india|karnataka|maharashtra|tamil nadu|telangana|gujarat|rajasthan|uttar pradesh|west bengal)"],
+            "min_length": 20
+          },
+          "phone": {
+            "patterns": ["(\\+91|0)[\\s-]?[6-9]\\d{9}", "\\+?1?[\\s-]?\\(?\\d{3}\\)?[\\s-]?\\d{3}[\\s-]?\\d{4}"],
+            "must_be_indian": true
+          },
+          "email": {
+            "patterns": ["[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}"],
+            "must_be_business_domain": false
+          }
+        },
+        "red_flags": ["example.com", "test@test.com", "123 main street", "new york", "london", "us address"]
+      },
+      "business_type_variations": {}
+    },
+    {
+      "id": "RBI-005",
+      "category": "Tax",
+      "name": "GST Registration Display",
+      "severity": "warning",
+      "description": "Merchants registered for GST must display their GSTIN on the website (typically in footer, about page, or invoice).",
+      "detection_strategy": "content_search",
+      "search": {
+        "url_patterns": ["/about", "/about-us", "/company", "/footer"],
+        "link_text_patterns": ["about", "about us"],
+        "footer_patterns": ["gst", "gstin", "gst no", "gst number", "gstin:"],
+        "body_keywords": ["gst", "gstin", "goods and services tax"]
+      },
+      "quality_criteria": {
+        "gst_pattern": "[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}",
+        "red_flags": ["00AAAAA0000A0Z0"]
+      },
+      "business_type_variations": {}
+    },
+    {
+      "id": "RBI-006",
+      "category": "KYC",
+      "name": "KYC Name Consistency",
+      "severity": "critical",
+      "description": "Business name across PAN, GST registration, and bank account must match. Common divergences include abbreviations (Pvt/Private, Ltd/Limited), word order, spacing.",
+      "detection_strategy": "user_input_comparison",
+      "search": {},
+      "quality_criteria": {
+        "min_similarity_threshold": 0.90,
+        "normalization_rules": [
+          {"pattern": "pvt\\.?\\s*", "replacement": "private "},
+          {"pattern": "ltd\\.?\\s*$", "replacement": "limited"},
+          {"pattern": "\\s*&\\s*", "replacement": " and "},
+          {"pattern": "co\\.?\\s*$", "replacement": "company"},
+          {"pattern": "intl\\.?\\s*", "replacement": "international "},
+          {"pattern": "llp\\b", "replacement": "limited liability partnership"}
+        ],
+        "known_mismatch_patterns": [
+          "& vs and",
+          "Pvt vs Private",
+          "Ltd vs Limited",
+          "word spacing",
+          "Co vs Company",
+          "Intl vs International"
+        ]
+      },
+      "business_type_variations": {}
+    }
+  ]
+}

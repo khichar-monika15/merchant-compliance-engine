@@ -1,0 +1,103 @@
+{
+  "version": "1.0",
+  "stacks": {
+    "shopify": {
+      "detection": {
+        "html_contains": ["myshopify.com", "Shopify.theme", "shopify-section", "cdn.shopify.com", "shopify-checkout"],
+        "meta": {"name": "shopify-checkout-api-token"}
+      },
+      "razorpay_recommendation": {
+        "product": "Razorpay Payment Button",
+        "reason": "Shopify stores are best served by the Razorpay Payment Button or the official Shopify app — no custom code needed",
+        "integration_method": "shopify_app",
+        "starter_template": "shopify_razorpay_note.md",
+        "docs_url": "https://razorpay.com/integrations/shopify/"
+      }
+    },
+    "woocommerce": {
+      "detection": {
+        "html_contains": ["woocommerce", "wc-", "wc_cart", "wc_single_product"]
+      },
+      "razorpay_recommendation": {
+        "product": "Razorpay WooCommerce Plugin",
+        "reason": "WooCommerce has an official Razorpay plugin — install from WordPress plugin directory",
+        "integration_method": "woocommerce_plugin",
+        "starter_template": "woocommerce_razorpay_note.md",
+        "docs_url": "https://razorpay.com/integrations/woocommerce/"
+      }
+    },
+    "nextjs": {
+      "detection": {
+        "html_contains": ["_next/static", "__NEXT_DATA__", "_next/chunks"],
+        "headers": {"x-powered-by": "Next.js"}
+      },
+      "razorpay_recommendation": {
+        "product": "Razorpay Standard Checkout",
+        "reason": "Next.js apps should use Razorpay Standard Checkout with server-side order creation via API routes",
+        "integration_method": "standard_checkout",
+        "starter_template": "nextjs_razorpay.tsx",
+        "docs_url": "https://razorpay.com/docs/payments/payment-gateway/web-integration/standard/"
+      }
+    },
+    "react": {
+      "detection": {
+        "html_contains": ["react-dom", "data-reactroot", "__react", "ReactDOM", "root.render"]
+      },
+      "razorpay_recommendation": {
+        "product": "Razorpay Standard Checkout",
+        "reason": "React apps should dynamically load Razorpay checkout script and create orders from your backend",
+        "integration_method": "standard_checkout",
+        "starter_template": "react_razorpay.tsx",
+        "docs_url": "https://razorpay.com/docs/payments/payment-gateway/web-integration/standard/"
+      }
+    },
+    "vue_nuxt": {
+      "detection": {
+        "html_contains": ["__nuxt", "vue-", "data-v-", "window.__nuxt"]
+      },
+      "razorpay_recommendation": {
+        "product": "Razorpay Standard Checkout",
+        "reason": "Vue/Nuxt apps should use dynamic script loading with Razorpay Standard Checkout",
+        "integration_method": "standard_checkout",
+        "starter_template": "vue_razorpay.vue",
+        "docs_url": "https://razorpay.com/docs/payments/payment-gateway/web-integration/standard/"
+      }
+    },
+    "django": {
+      "detection": {
+        "html_contains": ["csrfmiddlewaretoken", "django", "__all__"],
+        "headers": {"x-frame-options": "SAMEORIGIN", "x-content-type-options": "nosniff"}
+      },
+      "razorpay_recommendation": {
+        "product": "Razorpay Standard Checkout",
+        "reason": "Django apps can use the Razorpay Python SDK for server-side order creation with CSRF protection",
+        "integration_method": "standard_checkout",
+        "starter_template": "django_razorpay.py",
+        "docs_url": "https://razorpay.com/docs/payments/payment-gateway/server-integration/python/"
+      }
+    },
+    "laravel": {
+      "detection": {
+        "cookies": ["laravel_session"],
+        "html_contains": ["csrf-token", "laravel", "XSRF-TOKEN"]
+      },
+      "razorpay_recommendation": {
+        "product": "Razorpay Standard Checkout",
+        "reason": "Laravel apps should use the Razorpay PHP SDK with CSRF token protection on the order endpoint",
+        "integration_method": "standard_checkout",
+        "starter_template": "laravel_razorpay.php",
+        "docs_url": "https://razorpay.com/docs/payments/payment-gateway/server-integration/php/"
+      }
+    },
+    "static_html": {
+      "detection": {},
+      "razorpay_recommendation": {
+        "product": "Razorpay Payment Links or Standard Checkout",
+        "reason": "Static HTML sites can use Razorpay Payment Links for zero-code integration, or Standard Checkout via a simple script tag",
+        "integration_method": "standard_checkout",
+        "starter_template": "html_razorpay.html",
+        "docs_url": "https://razorpay.com/docs/payments/payment-gateway/web-integration/standard/"
+      }
+    }
+  }
+}

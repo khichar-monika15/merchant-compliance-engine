@@ -1,0 +1,107 @@
+{
+  "version": "1.0",
+  "source": "PCI DSS v4.0.1 — Requirements 6.4.3 and 11.6.1 (surface-level external checks only)",
+  "checks": [
+    {
+      "id": "PCI-001",
+      "requirement": "6.4.3",
+      "name": "Script Inventory",
+      "severity": "critical",
+      "description": "All scripts loaded on payment pages must be inventoried and have documented business justification.",
+      "scoring": {
+        "max_points": 25,
+        "deductions": [
+          {"condition": "third_party_scripts > 10", "points": 10, "reason": "Excessive third-party scripts on payment flow"},
+          {"condition": "third_party_scripts > 20", "points": 15, "reason": "Highly excessive third-party script count"},
+          {"condition": "scripts_without_sri > 0 and scripts_without_sri <= 3", "points": 5, "reason": "Some external scripts lack SRI"},
+          {"condition": "scripts_without_sri > 3", "points": 15, "reason": "Many external scripts lack SRI (PCI 6.4.3 violation risk)"}
+        ]
+      }
+    },
+    {
+      "id": "PCI-002",
+      "requirement": "6.4.3",
+      "name": "Subresource Integrity (SRI)",
+      "severity": "critical",
+      "description": "All third-party scripts must have integrity attributes to prevent supply-chain attacks.",
+      "scoring": {
+        "max_points": 25,
+        "per_script_without_sri_deduction": 3,
+        "max_deduction": 25
+      },
+      "known_exemptions": ["razorpay.com", "checkout.razorpay.com", "stripe.com"],
+      "notes": "Payment provider scripts often cannot use SRI due to dynamic versioning — these are exempt."
+    },
+    {
+      "id": "PCI-003",
+      "requirement": "6.4.3",
+      "name": "Third-Party Script Risk Classification",
+      "severity": "warning",
+      "description": "Third-party scripts should be classified by risk based on vendor reputation and access level.",
+      "risk_domains": {
+        "low_risk": [
+          {"domains": ["google-analytics.com", "googletagmanager.com", "google.com", "googleapis.com", "gstatic.com"], "category": "analytics"},
+          {"domains": ["cloudflare.com", "cloudflareinsights.com"], "category": "cdn"},
+          {"domains": ["razorpay.com", "checkout.razorpay.com"], "category": "payment"},
+          {"domains": ["stripe.com", "js.stripe.com"], "category": "payment"},
+          {"domains": ["fonts.googleapis.com", "fonts.gstatic.com"], "category": "fonts"},
+          {"domains": ["recaptcha.net", "www.google.com"], "category": "security"},
+          {"domains": ["jquery.com", "cdnjs.cloudflare.com", "unpkg.com", "jsdelivr.net"], "category": "cdn"}
+        ],
+        "medium_risk": [
+          {"domains": ["facebook.com", "connect.facebook.net", "fbcdn.net"], "category": "social"},
+          {"domains": ["hotjar.com", "static.hotjar.com"], "category": "analytics"},
+          {"domains": ["fullstory.com"], "category": "session-recording"},
+          {"domains": ["intercom.io", "widget.intercom.io", "js.intercom.io"], "category": "chat"},
+          {"domains": ["tawk.to", "embed.tawk.to"], "category": "chat"},
+          {"domains": ["cdn.segment.com", "analytics.js"], "category": "analytics"},
+          {"domains": ["mixpanel.com", "cdn.mxpnl.com"], "category": "analytics"},
+          {"domains": ["amplitude.com", "cdn.amplitude.com"], "category": "analytics"},
+          {"domains": ["onesignal.com", "cdn.onesignal.com"], "category": "push"},
+          {"domains": ["crisp.chat", "client.crisp.chat"], "category": "chat"},
+          {"domains": ["twitter.com", "platform.twitter.com", "cdn.syndication.twimg.com"], "category": "social"},
+          {"domains": ["linkedin.com", "snap.licdn.com"], "category": "social"},
+          {"domains": ["doubleclick.net", "googlesyndication.com", "adservice.google.com"], "category": "ad-tech"},
+          {"domains": ["clarity.ms", "c.clarity.ms"], "category": "analytics"}
+        ],
+        "high_risk_indicators": ["cdn-", "tracking.", "pixel.", "spy.", "collect."]
+      }
+    },
+    {
+      "id": "PCI-004",
+      "requirement": "11.6.1",
+      "name": "Content-Security-Policy Header",
+      "severity": "critical",
+      "description": "CSP header must be present and restrict script sources. Essential for PCI 11.6.1 change detection.",
+      "scoring": {
+        "max_points": 25,
+        "no_csp_deduction": 20,
+        "weak_csp_deduction": 10,
+        "moderate_csp_deduction": 5,
+        "strong_csp_deduction": 0
+      },
+      "grading": {
+        "strong": {"score_min": 80, "description": "No unsafe-inline/eval, restricted sources"},
+        "moderate": {"score_min": 50, "description": "Some permissive directives but broadly restricted"},
+        "weak": {"score_min": 1, "description": "Present but largely permissive"},
+        "none": {"score_min": 0, "description": "CSP absent"}
+      }
+    },
+    {
+      "id": "PCI-005",
+      "requirement": "11.6.1",
+      "name": "Security Headers Suite",
+      "severity": "warning",
+      "description": "HSTS, X-Frame-Options, X-Content-Type-Options, and Referrer-Policy must all be correctly configured.",
+      "scoring": {
+        "max_points": 25,
+        "headers": [
+          {"name": "Strict-Transport-Security", "points": 7, "requirement": "max-age >= 31536000"},
+          {"name": "X-Frame-Options", "points": 6, "requirement": "DENY or SAMEORIGIN"},
+          {"name": "X-Content-Type-Options", "points": 6, "requirement": "nosniff"},
+          {"name": "Referrer-Policy", "points": 6, "requirement": "strict-origin or no-referrer"}
+        ]
+      }
+    }
+  ]
+}

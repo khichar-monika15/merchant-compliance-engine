@@ -1,6 +1,6 @@
 import re
 
-from thefuzz import fuzz
+from rapidfuzz import fuzz as rapidfuzz_fuzz
 
 # (pattern, replacement, flags)
 _NORMALIZATION_RULES: list[tuple[str, str, int]] = [
@@ -60,8 +60,8 @@ def check_name_pair(name_a: str, name_b: str, label_a: str, label_b: str) -> dic
     norm_a = normalize_name(name_a)
     norm_b = normalize_name(name_b)
 
-    # Use token sort ratio for better matching of word-order variations
-    similarity = fuzz.token_sort_ratio(norm_a, norm_b) / 100.0
+    # WRatio combines multiple algorithms; handles word order, abbreviations, partial matches
+    similarity = rapidfuzz_fuzz.WRatio(norm_a, norm_b) / 100.0
 
     issues: list[str] = []
     for mp in _KNOWN_MISMATCH_PATTERNS:
