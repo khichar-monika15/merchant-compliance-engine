@@ -236,11 +236,19 @@ function PciCard({ check }: { check: PciCheck }) {
           </Section>
         ) : null}
 
-        {!check.scoring && (
-          <p className="text-caption text-text-tertiary">
-            Classification only. This check labels every third-party script by risk and category
-            and raises no deduction of its own.
-          </p>
+        {check.findings && (
+          <Section title="What it raises">
+            <p className="text-caption text-text-secondary">
+              Every third-party script is classified by risk and category. A script rated{' '}
+              {check.findings.flag_risk_levels.join(' or ')} raises a warning, grouped by
+              category. {check.findings.elevated_categories.join(' and ')} scripts are called out
+              separately because they {check.findings.elevated_reason}.
+            </p>
+            <p className="mt-1 text-caption text-text-tertiary">
+              This check raises findings but carries no points of its own; the 100 are allocated
+              across the other four.
+            </p>
+          </Section>
         )}
       </div>
     </Card>

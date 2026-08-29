@@ -164,3 +164,30 @@ def _grade_thresholds():
     from backend.agents.report_generator import _GRADE_THRESHOLDS
 
     return _GRADE_THRESHOLDS
+
+
+class TestReadmeTestCount:
+    """The README quotes a test count. It said 177 while the suite was 363.
+
+    A number a human retypes goes stale silently, which is the same failure as a rule nobody
+    applies. This one is checked against the collector.
+    """
+
+    def test_readme_count_matches_the_collector(self):
+        import re
+        import subprocess
+
+        readme = Path("README.md").read_text(encoding="utf-8")
+        stated = re.search(r"#\s*(\d+)\s*tests", readme)
+        assert stated, "README no longer states a test count in the quickstart block"
+
+        out = subprocess.run(
+            ["python", "-m", "pytest", "backend/tests/", "--collect-only", "-q"],
+            capture_output=True, text=True, check=False,
+        ).stdout
+        collected = re.search(r"(\d+) tests collected", out)
+        assert collected, f"could not read a collected count from pytest:\n{out[-400:]}"
+
+        assert int(stated.group(1)) == int(collected.group(1)), (
+            f"README says {stated.group(1)} tests, the suite collects {collected.group(1)}"
+        )

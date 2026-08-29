@@ -55,7 +55,17 @@
       "requirement": "6.4.3",
       "name": "Third-Party Script Risk Classification",
       "severity": "warning",
-      "description": "Third-party scripts should be classified by risk based on vendor reputation and access level."
+      "description": "Third-party scripts should be classified by risk based on vendor reputation and access level.",
+      "findings": {
+        "flag_risk_levels": [
+          "medium",
+          "high"
+        ],
+        "elevated_categories": [
+          "session-recording"
+        ],
+        "elevated_reason": "can record what a customer types, including data entered into payment fields"
+      }
     },
     {
       "id": "PCI-004",

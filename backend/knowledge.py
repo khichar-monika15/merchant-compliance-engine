@@ -117,6 +117,10 @@ KNOWLEDGE_FIELDS: dict[str, dict[str, tuple[str, str]]] = {
         "none": dynamic("grading"),
         "score_min": applied("backend.tools.csp_parser"),
         "headers": applied("backend.agents.pci_scanner"),
+        "findings": applied("backend.agents.pci_scanner"),
+        "flag_risk_levels": applied("backend.agents.pci_scanner"),
+        "elevated_categories": applied("backend.agents.pci_scanner"),
+        "elevated_reason": applied("backend.agents.pci_scanner"),
     },
     "script_risk_database.json": {
         "version": applied("backend.api.routes"),

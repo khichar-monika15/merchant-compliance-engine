@@ -232,6 +232,12 @@ export interface PciCheck {
   }
   known_exemptions?: string[]
   notes?: string
+  /** PCI-003 raises warnings from the script risk classification without carrying points. */
+  findings?: {
+    flag_risk_levels: string[]
+    elevated_categories: string[]
+    elevated_reason: string
+  }
   grading?: Record<string, { score_min: number; description: string }>
 }
 

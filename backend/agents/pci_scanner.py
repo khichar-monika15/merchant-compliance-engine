@@ -41,6 +41,43 @@ def _is_sri_exempt(src: str) -> bool:
     return any(host == exempt or host.endswith("." + exempt) for exempt in _SRI_EXEMPT_HOSTS)
 
 
+# PCI-003 classifies every third-party script and used to stop there: it declared a warning
+# severity that no code path could ever produce, so a merchant running a session recorder on
+# checkout was told nothing. It raises findings rather than deductions, because the 100 points
+# are already allocated across the other four checks.
+_RISK_FINDINGS = knowledge.pci_check("PCI-003")["findings"]
+_FLAGGED_RISK_LEVELS = set(_RISK_FINDINGS["flag_risk_levels"])
+_ELEVATED_CATEGORIES = set(_RISK_FINDINGS["elevated_categories"])
+_ELEVATED_REASON = _RISK_FINDINGS["elevated_reason"]
+
+
+def _script_risk_findings(third_party) -> list[tuple[str, str]]:
+    """One finding per risky category, not one per script, so the report stays readable."""
+    by_category: dict[str, list[str]] = {}
+    for script in third_party:
+        if script.risk_level in _FLAGGED_RISK_LEVELS:
+            by_category.setdefault(script.category or "unknown", []).append(
+                urlparse(script.src or "").netloc or script.src or "inline"
+            )
+
+    findings = []
+    for category, domains in sorted(by_category.items()):
+        shown = ", ".join(sorted(set(domains))[:3])
+        if category in _ELEVATED_CATEGORIES:
+            findings.append((
+                "PCI-003",
+                f"{len(domains)} {category} script(s) loaded ({shown}), which {_ELEVATED_REASON} "
+                f"(PCI 6.4.3)",
+            ))
+        else:
+            findings.append((
+                "PCI-003",
+                f"{len(domains)} third-party {category} script(s) loaded ({shown}), "
+                f"review whether they belong on a payment page (PCI 6.4.3)",
+            ))
+    return findings
+
+
 def _score_headers(security_analysis: dict) -> tuple[int, list[tuple[str, str]]]:
     """Score CSP (PCI-004) and the security header suite (PCI-005) out of 50.
 
@@ -152,13 +189,16 @@ async def run(state: EngineState) -> dict:
         script_score, script_issues = _score_scripts(len(third_party), len(without_sri))
         total_score = min(100, header_score + script_score)
 
+        # PCI-003 contributes findings, never points, so this cannot move a score.
+        risk_issues = _script_risk_findings(third_party)
+
         issues = [
             PCIIssue(
                 check_id=check_id,
                 message=message,
                 severity=Severity(knowledge.pci_check(check_id)["severity"]),
             )
-            for check_id, message in header_issues + script_issues
+            for check_id, message in header_issues + script_issues + risk_issues
         ]
 
         pci_result = PCIResult(

@@ -18,7 +18,7 @@ uv sync
 uv run playwright install chromium
 
 cp .env.example .env      # see Configuration below
-uv run pytest backend/tests/            # 363 tests, no credentials needed
+uv run pytest backend/tests/            # 376 tests, no credentials needed
 uv run uvicorn backend.main:app --reload --port 8000
 cd frontend && npm install && npm run dev   # http://localhost:5173
 ```
@@ -69,7 +69,7 @@ audit log without blocking the others.
 |---|---|---|
 | RBI compliance | 40% | 5 of the 6 checks in `backend/knowledge/rbi_mdd_checklist.json` (RBI-006 is scored under KYC) |
 | KYC consistency | 25% | How many of the 3 document pairs agree |
-| PCI DSS surface | 20% | 4 of the 5 checks in `backend/knowledge/pci_dss_surface_checks.json` (PCI-003 classifies scripts and carries no deduction) |
+| PCI DSS surface | 20% | 4 of the 5 checks in `backend/knowledge/pci_dss_surface_checks.json` carry points; PCI-003 classifies every third-party script and raises warnings, notably session recorders that can capture card entry, without taking points from the other four |
 | Integration readiness | 15% | Stack detected + starter code, with a live test order as a bonus |
 
 Grades: A ≥ 90, B ≥ 75, C ≥ 50, D ≥ 25, F below that.
@@ -93,7 +93,7 @@ are what the engine actually produces when the sites are served locally.
 
 | Site | Port | Stack | Score | Grade | Planted gaps |
 |---|---|---|---|---|---|
-| FreshKart India | 4001 | static HTML | 19 | F | No policy pages, 18 third-party scripts (17 without SRI), GSTIN only in an HTML comment, KYC mismatches |
+| FreshKart India | 4001 | static HTML | 19 | F | No policy pages, 18 third-party scripts (15 counted without SRI, two Razorpay scripts are exempt), GSTIN only in an HTML comment, KYC mismatches |
 | QuickBites Delivery | 4002 | Nuxt | 28 | D | Thin boilerplate privacy policy, no refund or T&C, US registered office and no Indian address, no GSTIN, KYC mismatches |
 | CloudDesk SaaS | 4003 | Next.js | 55 | C | Refund and privacy pages are 40-60 word stubs, no T&C, no GSTIN |
 | Artisan Weaves | 4004 | Shopify | 81 | B | Nearly compliant — policies substantive but not exhaustive, GSTIN shown, KYC clean; missing a CSP header |
@@ -121,15 +121,17 @@ npx serve test-sites/artisan-weaves       -p 4004
 uv run python -m backend.tests.validate_ground_truth
 ```
 
-Each site's `vercel.json` sets real security headers, but a static local server does not apply
-them. Served locally every site reports its headers as missing, so the ground-truth files encode
-the local-serving values. Deploy to Vercel to see the header differences.
+Artisan's `vercel.json` sets four security headers and CloudDesk's sets one; FreshKart and
+QuickBites declare a header rule with nothing in it, which is the planted fault. A static local
+server does not apply any of them either way, so served locally every site reports its headers as
+missing and the ground-truth files encode the local-serving values. Deploy to Vercel to see the
+header differences.
 
 ## Tech stack
 
 - **Backend**: Python 3.12, FastAPI, LangGraph 0.2.60, Playwright, SQLite (aiosqlite)
 - **LLM**: AWS Bedrock mantle (OpenAI-compatible) or Anthropic direct — both optional
-- **Frontend**: React 18, TypeScript, Tailwind CSS, Vite, Recharts
+- **Frontend**: React 18, TypeScript, Tailwind CSS, Vite, Zustand, React Router
 - **Payment**: Razorpay Python SDK (test mode)
 
 ## Known limitations
@@ -143,5 +145,5 @@ the local-serving values. Deploy to Vercel to see the header differences.
 - Generated policy documents are drafts for a merchant to review, not legal advice. Nothing checks
   them for legal accuracy.
 - A site with no checkout or cart page has its security headers graded on the homepage.
-- `AuditEvent` in `backend/models/database.py` and `verify_payment_signature` in
-  `backend/tools/razorpay_client.py` are written but not yet wired to anything.
+- `verify_payment_signature` in `backend/tools/razorpay_client.py` is written and tested but
+  not wired to a webhook route, because there is no webhook route yet.
