@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-import type { MerchantInput, ScanResponse } from './types'
+import type { KnowledgeBase, MerchantInput, ScanResponse } from './types'
 
 /**
  * Same origin on purpose. The Vite dev server proxies `/api` and `/ws` to port 8000, and the
@@ -33,4 +33,9 @@ export async function getHealth(): Promise<HealthResponse> {
 export function scanSocketUrl(jobId: string): string {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   return `${proto}//${window.location.host}/ws/scan/${jobId}`
+}
+
+export async function getKnowledge(): Promise<KnowledgeBase> {
+  const { data } = await http.get<KnowledgeBase>('/api/knowledge')
+  return data
 }

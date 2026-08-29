@@ -147,15 +147,11 @@ export function LandingPage() {
                 Run a compliance scan
               </Button>
             </Link>
-            <a
-              href="https://github.com/khichar-monika15/merchant-compliance-engine"
-              target="_blank"
-              rel="noreferrer"
-            >
+            <Link to="/checks">
               <Button size="lg" variant="secondary">
-                Read the code
+                See every check
               </Button>
-            </a>
+            </Link>
           </div>
         </div>
 

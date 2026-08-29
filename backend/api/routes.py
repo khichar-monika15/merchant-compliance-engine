@@ -133,6 +133,37 @@ async def health():
     return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
+@router.get("/knowledge")
+async def knowledge_base():
+    """The rules the engine applies, served from the files the agents load.
+
+    The public checks page renders this rather than restating the rules, so the documentation
+    cannot drift from the behaviour the way a hand written page would.
+    """
+    from backend import knowledge
+    from backend.agents.report_generator import _GRADE_THRESHOLDS, _WEIGHTS
+
+    rbi, pci = knowledge.rbi_document(), knowledge.pci_document()
+    return {
+        "rbi": {"version": rbi["version"], "source": rbi["source"], "checks": rbi["checks"]},
+        "pci": {
+            "version": pci["version"],
+            "source": pci["source"],
+            "checks": pci["checks"],
+            "payment_page_patterns": knowledge.payment_page_patterns(),
+        },
+        "scoring": {
+            "weights": {
+                "RBI Compliance": _WEIGHTS["rbi_compliance"],
+                "KYC Consistency": _WEIGHTS["kyc"],
+                "PCI DSS": _WEIGHTS["pci"],
+                "Integration": _WEIGHTS["integration"],
+            },
+            "grades": [{"grade": g, "min_score": t} for t, g in _GRADE_THRESHOLDS],
+        },
+    }
+
+
 @router.post("/scan", response_model=ScanResponse)
 async def start_scan(request: ScanRequest):
     job_id = str(uuid.uuid4())

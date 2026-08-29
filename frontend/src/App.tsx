@@ -4,6 +4,7 @@ import { DashboardLayout } from '@/app/DashboardLayout'
 import { ErrorBoundary } from '@/app/ErrorBoundary'
 import { ProtectedRoute, PublicOnlyRoute } from '@/app/RouteGuards'
 import { AuthProvider } from '@/auth/AuthContext'
+import { ChecksPage } from '@/pages/ChecksPage'
 import { DashboardHome } from '@/pages/DashboardHome'
 import { LandingPage } from '@/pages/LandingPage'
 import { LoginPage } from '@/pages/LoginPage'
@@ -20,6 +21,7 @@ export default function App() {
         <AuthProvider>
           <Routes>
             <Route path="/" element={<LandingPage />} />
+            <Route path="/checks" element={<ChecksPage />} />
 
             <Route element={<PublicOnlyRoute />}>
               <Route path="/login" element={<LoginPage />} />

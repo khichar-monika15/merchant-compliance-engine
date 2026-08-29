@@ -57,9 +57,13 @@ export function DashboardHome() {
               checklist, five from PCI DSS v4.0.1 requirements 6.4.3 and 11.6.1.
             </p>
           </div>
-          <p className="mt-4 text-caption text-text-tertiary">
-            Grounded in backend/knowledge, not model memory.
-          </p>
+          <Button
+            variant="secondary"
+            className="mt-4 self-start"
+            onClick={() => navigate('/checks')}
+          >
+            See every check
+          </Button>
         </Card>
       </div>
 

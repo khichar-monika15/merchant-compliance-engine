@@ -21,6 +21,38 @@ def _rbi(check_id: str) -> dict:
     return next(c for c in _RBI["checks"] if c["id"] == check_id)
 
 
+class TestKnowledgeEndpoint:
+    """The checks page must serve the engine's own files, never a second copy."""
+
+    @pytest.fixture
+    def client(self):
+        from fastapi.testclient import TestClient
+
+        from backend.main import create_app
+
+        with TestClient(create_app()) as c:
+            yield c
+
+    def test_serves_all_eleven_checks(self, client):
+        body = client.get("/api/knowledge").json()
+        ids = [c["id"] for c in body["rbi"]["checks"]] + [c["id"] for c in body["pci"]["checks"]]
+        assert len(ids) == 11
+        assert "RBI-006" in ids and "PCI-004" in ids
+
+    def test_payload_matches_the_files_on_disk(self, client):
+        body = client.get("/api/knowledge").json()
+        assert body["rbi"]["checks"] == _RBI["checks"]
+        assert body["pci"]["checks"] == _PCI["checks"]
+
+    def test_reports_the_scoring_model(self, client):
+        scoring = client.get("/api/knowledge").json()["scoring"]
+        assert scoring["weights"]["RBI Compliance"] == 0.40
+        assert scoring["grades"][0] == {"grade": "A", "min_score": 90}
+
+    def test_no_auth_required(self, client):
+        assert client.get("/api/knowledge").status_code == 200
+
+
 class TestLoaders:
     def test_rbi_checks_load(self):
         assert len(kb.rbi_checks()) == 6

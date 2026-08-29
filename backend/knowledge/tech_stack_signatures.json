@@ -16,7 +16,7 @@
       },
       "razorpay_recommendation": {
         "product": "Razorpay Payment Button",
-        "reason": "Shopify stores are best served by the Razorpay Payment Button or the official Shopify app \u2014 no custom code needed",
+        "reason": "Shopify stores are best served by the Razorpay Payment Button or the official Shopify app, no custom code needed",
         "integration_method": "shopify_app",
         "starter_template": "shopify_razorpay_note.md",
         "docs_url": "https://razorpay.com/integrations/shopify/"
@@ -33,7 +33,7 @@
       },
       "razorpay_recommendation": {
         "product": "Razorpay WooCommerce Plugin",
-        "reason": "WooCommerce has an official Razorpay plugin \u2014 install from WordPress plugin directory",
+        "reason": "WooCommerce has an official Razorpay plugin, install from WordPress plugin directory",
         "integration_method": "woocommerce_plugin",
         "starter_template": "woocommerce_razorpay_note.md",
         "docs_url": "https://razorpay.com/integrations/woocommerce/"
@@ -53,7 +53,7 @@
       },
       "razorpay_recommendation": {
         "product": "Razorpay Payment Button",
-        "reason": "WordPress without WooCommerce \u2014 embed a Payment Button or Payment Page, no server code required",
+        "reason": "WordPress without WooCommerce, embed a Payment Button or Payment Page, no server code required",
         "integration_method": "payment_button",
         "starter_template": "html_razorpay.html",
         "docs_url": "https://razorpay.com/docs/payments/payment-button/"

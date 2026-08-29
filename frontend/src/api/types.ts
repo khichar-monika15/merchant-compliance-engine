@@ -170,3 +170,51 @@ export type ProgressEvent = {
   done?: boolean
   timestamp?: string
 }
+
+// --- Knowledge base (GET /api/knowledge) ---
+export interface RbiCheck {
+  id: string
+  category: string
+  name: string
+  severity: Severity
+  description: string
+  detection_strategy: string
+  search?: {
+    url_patterns?: string[]
+    link_text_patterns?: string[]
+    footer_patterns?: string[]
+    body_keywords?: string[]
+  }
+  quality_criteria?: {
+    min_word_count?: number
+    must_contain_topics?: string[]
+    red_flags?: string[]
+    required_elements?: Record<string, Record<string, unknown>>
+    gst_pattern?: string
+    normalization_rules?: Array<{ pattern: string; replacement: string }>
+    known_mismatch_patterns?: string[]
+    min_similarity_threshold?: number
+  }
+  business_type_variations?: Record<string, { extra_topics?: string[] }>
+}
+
+export interface PciCheck {
+  id: string
+  requirement: string
+  name: string
+  severity: Severity
+  description: string
+  scoring?: {
+    max_points?: number
+    deductions?: Array<{ condition: string; points: number; reason: string }>
+  }
+}
+
+export interface KnowledgeBase {
+  rbi: { version: string; source: string; checks: RbiCheck[] }
+  pci: { version: string; source: string; checks: PciCheck[]; payment_page_patterns: string[] }
+  scoring: {
+    weights: Record<string, number>
+    grades: Array<{ grade: string; min_score: number }>
+  }
+}
