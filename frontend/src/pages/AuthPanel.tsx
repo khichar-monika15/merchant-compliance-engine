@@ -34,7 +34,7 @@ export function AuthPanel({ title, subtitle, children, footer }: AuthPanelProps)
         </div>
 
         <p className="relative text-caption text-white/50">
-          11 compliance checks · 7 agents · about 20 seconds
+          11 compliance checks · 7 agents · 5 to 9 seconds on a local site
         </p>
       </div>
 

@@ -4,7 +4,7 @@ import { ArrowLeft, ShieldCheck, TriangleAlert } from 'lucide-react'
 
 import { getKnowledge } from '@/api/client'
 import type { KnowledgeBase, PciCheck, RbiCheck } from '@/api/types'
-import { Badge, Card, SEVERITY_VARIANT, Spinner, cn } from '@/components/ui'
+import { Badge, Card, SEVERITY_VARIANT, Spinner, cn, gradeText } from '@/components/ui'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -54,6 +54,12 @@ function RbiCard({ check }: { check: RbiCheck }) {
           </Section>
         ) : null}
 
+        {(s.link_text_patterns?.length || s.footer_patterns?.length) ? (
+          <Section title="Link text the crawler follows">
+            <Chips items={[...(s.link_text_patterns ?? []), ...(s.footer_patterns ?? [])]} />
+          </Section>
+        ) : null}
+
         {s.body_keywords?.length ? (
           <Section title="Keywords that identify the page">
             <Chips items={s.body_keywords} />
@@ -98,6 +104,55 @@ function RbiCard({ check }: { check: RbiCheck }) {
             }
           >
             <Chips items={q.red_flags} />
+          </Section>
+        ) : null}
+
+        {q.required_elements && (
+          <Section title="What the page must contain">
+            <ul className="space-y-1.5">
+              {Object.entries(q.required_elements).map(([element, rule]) => (
+                <li key={element}>
+                  <span className="font-mono text-caption text-accent">
+                    {element.replace(/_/g, ' ')}
+                  </span>
+                  {rule.locality_keywords?.length ? (
+                    <span className="ml-2 text-caption text-text-secondary">
+                      a 6 digit PIN code alongside one of: {rule.locality_keywords.join(', ')}
+                    </span>
+                  ) : null}
+                  {rule.subscriber_digits ? (
+                    <span className="ml-2 text-caption text-text-secondary">
+                      {rule.subscriber_digits} digits starting with{' '}
+                      {rule.allowed_leading_digits}
+                    </span>
+                  ) : null}
+                  {rule.pattern ? (
+                    <code className="ml-2 break-all font-mono text-caption text-text-secondary">
+                      {rule.pattern}
+                    </code>
+                  ) : null}
+                  {rule.note && (
+                    <p className="mt-0.5 text-caption text-text-tertiary">{rule.note}</p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </Section>
+        )}
+
+        {q.normalization_rules?.length ? (
+          <Section title="Applied before names are compared">
+            <ul className="space-y-1">
+              {q.normalization_rules.map((rule) => (
+                <li key={rule.pattern} className="flex flex-wrap items-baseline gap-2">
+                  <code className="font-mono text-caption text-accent">{rule.pattern}</code>
+                  <span className="text-caption text-text-tertiary">becomes</span>
+                  <code className="font-mono text-caption text-text-secondary">
+                    {rule.replacement.trim() || '(removed)'}
+                  </code>
+                </li>
+              ))}
+            </ul>
           </Section>
         ) : null}
 
@@ -436,14 +491,7 @@ export function ChecksPage() {
                     {kb.scoring.grades.map((g, i) => (
                       <li key={g.grade} className="flex items-center gap-3">
                         <span
-                          className={cn(
-                            'w-6 text-body font-bold',
-                            g.grade === 'A' && 'text-grade-a',
-                            g.grade === 'B' && 'text-grade-b',
-                            g.grade === 'C' && 'text-grade-c',
-                            g.grade === 'D' && 'text-grade-d',
-                            g.grade === 'F' && 'text-grade-f',
-                          )}
+                          className={cn('w-6 text-body font-bold', gradeText(g.grade))}
                         >
                           {g.grade}
                         </span>

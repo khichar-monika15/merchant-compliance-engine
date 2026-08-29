@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react'
 
 import { cn } from './cn'
 
@@ -6,7 +5,6 @@ export interface TabItem {
   id: string
   label: string
   count?: number
-  icon?: ReactNode
 }
 
 export interface TabsProps {
@@ -45,7 +43,6 @@ export function Tabs({ tabs, active, onChange, className }: TabsProps) {
                   : 'border-transparent text-text-secondary hover:text-text-primary',
               )}
             >
-              {tab.icon}
               {tab.label}
               {tab.count != null && (
                 <span

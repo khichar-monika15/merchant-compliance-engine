@@ -24,7 +24,7 @@ export function NewScanPage() {
         <h1 className="text-h1 text-text-primary">New compliance scan</h1>
         <p className="mt-1 text-body-sm text-text-secondary">
           Seven agents audit the site against RBI Merchant Due Diligence and PCI DSS v4.0.1, then
-          cross check the three KYC names. A local test site takes about 20 seconds.
+          cross check the three KYC names. A local test site takes 5 to 9 seconds on the rule path, longer with an LLM configured.
         </p>
       </div>
 

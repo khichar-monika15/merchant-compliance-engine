@@ -1,4 +1,5 @@
 export { Badge, SEVERITY_VARIANT } from './Badge'
+export { GRADE_TEXT, gradeText } from './grade'
 export type { BadgeProps } from './Badge'
 export { Button } from './Button'
 export type { ButtonProps } from './Button'

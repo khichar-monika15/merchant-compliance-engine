@@ -2,16 +2,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { BookOpen, Radar } from 'lucide-react'
 
 import { useAuth } from '@/auth/AuthContext'
-import { Badge, Button, Card, EmptyState, cn } from '@/components/ui'
+import { Badge, Button, Card, EmptyState, cn, gradeText } from '@/components/ui'
 import { useScanList } from '@/scan/scanStore'
-
-const GRADE_TONE: Record<string, string> = {
-  A: 'text-grade-a',
-  B: 'text-grade-b',
-  C: 'text-grade-c',
-  D: 'text-grade-d',
-  F: 'text-grade-f',
-}
 
 const STATUS_VARIANT = {
   queued: 'neutral',
@@ -110,7 +102,7 @@ export function DashboardHome() {
                       <span
                         className={cn(
                           'text-body font-bold',
-                          GRADE_TONE[scan.report.grade] ?? 'text-text-secondary',
+                          gradeText(scan.report.grade),
                         )}
                       >
                         {scan.report.grade}

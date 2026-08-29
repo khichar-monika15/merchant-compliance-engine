@@ -10,10 +10,19 @@ export function PoliciesTab({ policies }: { policies: PolicyGenResult }) {
   const [copied, setCopied] = useState(false)
 
   if (generated.length === 0) {
-    return (
+    // `policies_needed` is what the auditor actually decided. Asserting "nothing was needed"
+    // without reading it was true only because the generator happens to draft one document per
+    // needed policy; the claim did not depend on the field that carries the answer.
+    const needed = policies.policies_needed ?? []
+    return needed.length === 0 ? (
       <EmptyState
         title="No policies needed"
         description="Every required policy was found on the site and scored well enough that the engine did not draft a replacement."
+      />
+    ) : (
+      <EmptyState
+        title="Drafts unavailable"
+        description={`The audit flagged ${needed.join(', ')} as missing or too thin, but no draft was produced. The audit trail records why.`}
       />
     )
   }

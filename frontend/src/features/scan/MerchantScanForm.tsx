@@ -154,7 +154,9 @@ export function MerchantScanForm({
               }}
             >
               {site.label}
-              <span className="text-text-tertiary">{site.grade}</span>
+              <span className="text-text-tertiary">
+                {site.expected} {site.grade}
+              </span>
             </Button>
           ))}
         </div>

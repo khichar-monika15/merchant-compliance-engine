@@ -1,4 +1,4 @@
-import { Check, X } from 'lucide-react'
+import { Check, TriangleAlert, X } from 'lucide-react'
 
 import type { PCIResult, SecurityHeaderInfo } from '@/api/types'
 import { Badge, Card, CardHeader, cn } from '@/components/ui'
@@ -53,24 +53,42 @@ export function SecurityTab({ pci }: { pci: PCIResult }) {
               // The absent CSP shape has no `directives` key, so never assume one.
               const info = pci[key] as SecurityHeaderInfo | undefined
               const present = Boolean(info?.present)
+              // A header can be present and still fall short, for example an HSTS max-age
+              // below the minimum the checklist requires. The backend computes those reasons
+              // and they used to be dropped here, so a present header looked simply fine.
+              const shortfalls = present ? (info?.issues ?? []) : []
               return (
-                <li
-                  key={String(key)}
-                  className="flex items-center justify-between gap-3 px-5 py-2"
-                >
-                  <span className="flex min-w-0 items-center gap-2">
-                    {present ? (
-                      <Check className="h-4 w-4 shrink-0 text-status-success" />
-                    ) : (
-                      <X className="h-4 w-4 shrink-0 text-status-danger" />
-                    )}
-                    <span className="truncate font-mono text-caption text-text-primary">
-                      {label}
+                <li key={String(key)} className="px-5 py-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="flex min-w-0 items-center gap-2">
+                      {present && shortfalls.length === 0 ? (
+                        <Check className="h-4 w-4 shrink-0 text-status-success" />
+                      ) : present ? (
+                        <TriangleAlert className="h-4 w-4 shrink-0 text-status-warning" />
+                      ) : (
+                        <X className="h-4 w-4 shrink-0 text-status-danger" />
+                      )}
+                      <span className="truncate font-mono text-caption text-text-primary">
+                        {label}
+                      </span>
                     </span>
-                  </span>
-                  <span className="shrink-0 text-caption text-text-tertiary">
-                    {present ? (info?.strength ?? 'present') : why}
-                  </span>
+                    <span className="shrink-0 text-caption text-text-tertiary">
+                      {present
+                        ? [info?.strength, info?.score != null ? `${info.score}/100` : null]
+                            .filter(Boolean)
+                            .join(' · ') || 'present'
+                        : why}
+                    </span>
+                  </div>
+                  {shortfalls.length > 0 && (
+                    <ul className="mt-1 space-y-0.5 pl-6">
+                      {shortfalls.map((issue) => (
+                        <li key={issue} className="text-caption text-text-secondary">
+                          {issue}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </li>
               )
             })}

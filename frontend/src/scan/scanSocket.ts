@@ -64,13 +64,12 @@ async function fetchResult(jobId: string): Promise<void> {
       store.settle(jobId, {
         status: 'failed',
         error: res.error ?? null,
-        errorSource: res.error ? 'fetch' : null,
       })
       // Keep the socket open when the reason is missing: the server replays the error event.
       if (res.error) cleanupJob(jobId)
     }
   } catch (err) {
-    store.settle(jobId, { status: 'failed', error: describeError(err), errorSource: 'fetch' })
+    store.settle(jobId, { status: 'failed', error: describeError(err) })
     cleanupJob(jobId)
   }
 }
@@ -131,7 +130,6 @@ export function connectSocket(jobId: string): void {
       store.settle(jobId, {
         status: 'failed',
         error: (data.message ?? 'Scan failed').replace(/^Error:\s*/, ''),
-        errorSource: 'stream',
       })
       cleanupJob(jobId)
     }
@@ -158,7 +156,6 @@ export async function attachToJob(jobId: string): Promise<void> {
       status: res.status,
       report: res.report ?? null,
       error: res.error ?? null,
-      errorSource: res.error ? 'fetch' : null,
     })
     if (res.status === 'completed') return
     if (res.status === 'failed' && res.error) return
@@ -170,14 +167,9 @@ export async function attachToJob(jobId: string): Promise<void> {
       error: notFound
         ? 'This scan is no longer available. The engine keeps recent scans only.'
         : describeError(err),
-      errorSource: notFound ? 'unavailable' : 'fetch',
     })
     return
   }
 
   connectSocket(jobId)
-}
-
-export function isTracking(jobId: string): boolean {
-  return controllers.has(jobId)
 }

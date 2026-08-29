@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { cn } from '@/components/ui'
+import { GRADE_TEXT, cn } from '@/components/ui'
 
 const GRADE_COLOR: Record<string, string> = {
   A: '#04db7c',
@@ -8,14 +8,6 @@ const GRADE_COLOR: Record<string, string> = {
   C: '#f5a623',
   D: '#fa8c16',
   F: '#ff4d4f',
-}
-
-export const GRADE_TEXT: Record<string, string> = {
-  A: 'text-grade-a',
-  B: 'text-grade-b',
-  C: 'text-grade-c',
-  D: 'text-grade-d',
-  F: 'text-grade-f',
 }
 
 const GRADE_WORD: Record<string, string> = {

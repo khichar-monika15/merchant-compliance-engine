@@ -191,3 +191,50 @@ class TestReadmeTestCount:
         assert int(stated.group(1)) == int(collected.group(1)), (
             f"README says {stated.group(1)} tests, the suite collects {collected.group(1)}"
         )
+
+
+class TestNoDeadFrontendExports:
+    """An exported symbol nothing references is a declaration the app does not honour.
+
+    `isTracking` sat exported in scanSocket.ts, called by nothing, not even its own module.
+    TypeScript's noUnusedLocals catches unused locals and imports; it says nothing about an
+    export, because an export is assumed to be someone else's entry point. Here there is no
+    someone else: this is a leaf application, not a library.
+    """
+
+    DECLARATION = re.compile(
+        r"^export\s+(?:default\s+)?(?:async\s+)?"
+        r"(?:function|const|class|interface|type|enum)\s+(\w+)",
+        re.M,
+    )
+
+    @staticmethod
+    def _sources() -> dict[Path, str]:
+        return {p: p.read_text(encoding="utf-8") for p in _FRONTEND.rglob("*.ts*")}
+
+    def test_every_export_is_referenced(self):
+        sources = self._sources()
+        dead = []
+
+        for path, text in sources.items():
+            for match in self.DECLARATION.finditer(text):
+                name = match.group(1)
+                pattern = re.compile(rf"\b{re.escape(name)}\b")
+                # Count references everywhere except the line that declares the symbol. The
+                # declaring file counts: a type used only as an annotation beside its own
+                # definition is legitimately used, and treating that as dead was wrong.
+                declaring_line = text[: match.start()].count("\n")
+                refs = 0
+                for other, body in sources.items():
+                    for i, line in enumerate(body.splitlines()):
+                        if other == path and i == declaring_line:
+                            continue
+                        if pattern.search(line):
+                            refs += 1
+                if refs == 0:
+                    dead.append(f"{name} ({path})")
+
+        assert not dead, (
+            "exported and referenced nowhere, so nothing honours the declaration: "
+            f"{sorted(dead)}"
+        )

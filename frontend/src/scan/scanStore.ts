@@ -8,17 +8,14 @@ import type { MerchantInput, ProgressEvent, ReadinessReport, ScanStatus } from '
 import { buildTimeline } from './agentTimeline'
 import { closeAllSockets, connectSocket } from './scanSocket'
 
-export type ErrorSource = 'submit' | 'stream' | 'fetch' | 'unavailable'
 
 export interface ScanRecord {
   jobId: string
   merchant: MerchantInput
   status: ScanStatus
-  startedAt: string
   events: ProgressEvent[]
   report: ReadinessReport | null
   error: string | null
-  errorSource: ErrorSource | null
 }
 
 interface ScanState {
@@ -29,7 +26,6 @@ interface ScanState {
   startScan: (merchant: MerchantInput) => Promise<string | null>
   applyEvent: (jobId: string, event: ProgressEvent) => void
   settle: (jobId: string, patch: Partial<ScanRecord>) => void
-  clearSubmitError: () => void
   reset: () => void
 }
 
@@ -42,11 +38,9 @@ function blankRecord(jobId: string, merchant: MerchantInput): ScanRecord {
     jobId,
     merchant,
     status: 'queued',
-    startedAt: new Date().toISOString(),
     events: [],
     report: null,
     error: null,
-    errorSource: null,
   }
 }
 
@@ -93,10 +87,6 @@ export const useScanStore = create<ScanState>((set) => ({
         order: s.order.includes(jobId) ? s.order : [jobId, ...s.order],
       }
     })
-  },
-
-  clearSubmitError() {
-    set({ submitError: null })
   },
 
   reset() {

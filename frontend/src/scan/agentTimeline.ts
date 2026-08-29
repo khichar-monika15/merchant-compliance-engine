@@ -43,7 +43,6 @@ export interface AgentNode {
   name: AgentName
   phase: AgentPhase
   lastMessage: string | null
-  finishedAt: string | null
   parallel: boolean
 }
 
@@ -52,8 +51,6 @@ export interface Timeline {
   percent: number
   parallelGroupActive: boolean
   failure: { agent: string; message: string } | null
-  systemEvents: ProgressEvent[]
-  lastEventAt: number | null
 }
 
 function bucket(events: ProgressEvent[]): Map<string, ProgressEvent[]> {
@@ -91,19 +88,15 @@ function phaseFor(evts: ProgressEvent[] | undefined, name: AgentName, terminal: 
  */
 export function buildTimeline(events: ProgressEvent[], status: ScanStatus): Timeline {
   const real = events.filter((e) => e.type !== 'ping')
-  const systemEvents = real.filter((e) => !e.agent || SYSTEM_SENDERS.has(e.agent))
   const byAgent = bucket(real.filter((e) => e.agent && !SYSTEM_SENDERS.has(e.agent)))
   const terminal = status === 'completed' || status === 'failed'
 
   const agents: AgentNode[] = AGENT_ORDER.map((name) => {
     const evts = byAgent.get(name)
-    const phase = phaseFor(evts, name, terminal)
-    const finished = evts?.find((e) => e.done === true)
     return {
       name,
-      phase,
+      phase: phaseFor(evts, name, terminal),
       lastMessage: evts?.length ? (evts[evts.length - 1].message ?? null) : null,
-      finishedAt: finished?.timestamp ?? null,
       parallel: PARALLEL_GROUP.has(name),
     }
   })
@@ -116,9 +109,6 @@ export function buildTimeline(events: ProgressEvent[], status: ScanStatus): Time
   if (status === 'completed') percent = 100
 
   const errorEvent = [...real].reverse().find((e) => e.type === 'error')
-  const timestamps = real
-    .map((e) => (e.timestamp ? Date.parse(e.timestamp) : NaN))
-    .filter((n) => !Number.isNaN(n))
 
   return {
     agents,
@@ -130,7 +120,5 @@ export function buildTimeline(events: ProgressEvent[], status: ScanStatus): Time
           message: (errorEvent.message ?? 'Scan failed').replace(/^Error:\s*/, ''),
         }
       : null,
-    systemEvents,
-    lastEventAt: timestamps.length ? Math.max(...timestamps) : null,
   }
 }

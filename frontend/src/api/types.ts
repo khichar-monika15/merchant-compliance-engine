@@ -48,11 +48,16 @@ export interface ComplianceResult {
 // --- PCI DSS ---
 export interface SecurityHeaderInfo {
   present: boolean
+  /** The raw header value. Absent on the CSP result, which carries `directives` instead. */
   value?: string
+  /** CSP only: the parsed policy, its band, and its 0-100 score. */
+  directives?: Record<string, string[]>
   strength?: string
   score?: number
+  /** Set on the CSP-absent path, where there are no directives to report. */
+  policy?: string
+  /** Why this header falls short, for example an HSTS max-age below the required minimum. */
   issues?: string[]
-  directives?: Record<string, string[]>
 }
 
 export interface PCIResult {
@@ -202,9 +207,20 @@ export interface RbiCheck {
     min_word_count?: number
     must_contain_topics?: string[]
     red_flags?: string[]
-    required_elements?: Record<string, Record<string, unknown>>
+    required_elements?: Record<
+      string,
+      {
+        pin_code_pattern?: string
+        locality_keywords?: string[]
+        candidate_pattern?: string
+        subscriber_digits?: number
+        allowed_leading_digits?: string
+        pattern?: string
+        note?: string
+      }
+    >
     gst_pattern?: string
-    normalization_rules?: Array<{ pattern: string; replacement: string }>
+    normalization_rules?: Array<{ pattern: string; replacement: string; ignore_case?: boolean }>
     known_mismatch_patterns?: string[]
     min_similarity_threshold?: number
   }
