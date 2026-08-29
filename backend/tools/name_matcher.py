@@ -53,9 +53,7 @@ def _has_spacing_diff(a: str, b: str) -> bool:
     return a_no_space == b_no_space and a.lower() != b.lower()
 
 
-# Keyed by the pattern names RBI-006 declares, so a pattern added to the checklist without a
-# detector here fails a test rather than being silently ignored.
-_MISMATCH_DETECTORS = {
+_DETECTORS = {
     "& vs and": _has_ampersand_mismatch,
     "Pvt vs Private": partial(_has_abbrev_mismatch, abbrev="pvt", full="private"),
     "Ltd vs Limited": partial(_has_abbrev_mismatch, abbrev="ltd", full="limited"),
@@ -63,6 +61,23 @@ _MISMATCH_DETECTORS = {
     "Intl vs International": partial(_has_abbrev_mismatch, abbrev="intl", full="international"),
     "word spacing": _has_spacing_diff,
 }
+
+
+def _active_detectors() -> dict:
+    """Only the patterns RBI-006 declares are run, in the order it declares them.
+
+    Driving the list from the checklist rather than from this dict means removing a pattern from
+    the knowledge base actually stops it being applied, instead of leaving the file and the
+    behaviour disagreeing.
+    """
+    declared = _CRITERIA["known_mismatch_patterns"]
+    missing = [name for name in declared if name not in _DETECTORS]
+    if missing:
+        raise ValueError(f"RBI-006 declares patterns with no detector: {missing}")
+    return {name: _DETECTORS[name] for name in declared}
+
+
+_MISMATCH_DETECTORS = _active_detectors()
 
 
 def normalize_name(name: str) -> str:

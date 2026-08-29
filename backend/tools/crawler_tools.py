@@ -10,22 +10,23 @@ from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
 from playwright.async_api import Browser, async_playwright
 
+from backend import knowledge
 from backend.tools.script_analyzer import extract_scripts
 
-POLICY_URL_PATTERNS: dict[str, list[str]] = {
-    "refund": ["/refund", "/return", "/cancellation", "/refund-policy", "/return-policy", "/cancel"],
-    "privacy": ["/privacy", "/privacy-policy", "/data-policy", "/data-protection"],
-    "terms": ["/terms", "/tos", "/terms-and-conditions", "/terms-of-service", "/terms-of-use"],
-    "contact": ["/contact", "/contact-us", "/reach-us", "/get-in-touch", "/support"],
-    "checkout": ["/checkout", "/cart", "/payment", "/pay", "/order"],
-}
+def _policy_url_patterns() -> dict[str, list[str]]:
+    """Discovery patterns from the RBI checklist, plus the PCI payment page list.
 
-POLICY_LINK_TEXT_PATTERNS: dict[str, list[str]] = {
-    "refund": ["refund", "return", "cancellation", "money back", "cancel"],
-    "privacy": ["privacy", "data policy", "data protection"],
-    "terms": ["terms", "conditions", "terms of service", "tos"],
-    "contact": ["contact", "reach us", "get in touch", "help", "support"],
-}
+    These used to be a private copy in this module and had already drifted: the refund list was
+    missing `/money-back`, which RBI-001 declares. Checkout is not an RBI check, so its patterns
+    come from the PCI document, where requirements 6.4.3 and 11.6.1 need a payment page.
+    """
+    patterns = dict(knowledge.policy_url_patterns())
+    patterns["checkout"] = [f"/{p}" for p in knowledge.payment_page_patterns()]
+    return patterns
+
+
+POLICY_URL_PATTERNS: dict[str, list[str]] = _policy_url_patterns()
+POLICY_LINK_TEXT_PATTERNS: dict[str, list[str]] = knowledge.policy_link_text_patterns()
 
 _STACK_DB_PATH = Path(__file__).parent.parent / "knowledge" / "tech_stack_signatures.json"
 

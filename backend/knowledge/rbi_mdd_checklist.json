@@ -264,24 +264,31 @@
       "quality_criteria": {
         "required_elements": {
           "physical_address": {
-            "patterns": [
-              "\\d+.*?(road|street|avenue|lane|nagar|colony|sector|block|near|opp|beside|floor|building|tower|complex|market|bazaar|gali|mohalla|chowk)",
-              "(?:bangalore|bengaluru|mumbai|delhi|chennai|hyderabad|pune|kolkata|ahmedabad|jaipur|surat|lucknow|india|karnataka|maharashtra|tamil nadu|telangana|gujarat|rajasthan|uttar pradesh|west bengal)"
+            "pin_code_pattern": "(?<!\\d)[1-9]\\d{5}(?!\\d)",
+            "locality_keywords": [
+              "address",
+              "road",
+              "street",
+              "nagar",
+              "colony",
+              "sector",
+              "lane",
+              "marg",
+              "plot",
+              "floor",
+              "building",
+              "india"
             ],
-            "min_length": 20
+            "note": "An Indian postal address carries a 6 digit PIN code. Requiring one alongside a locality word removes the false positive where the word 'india' in a footer counted as a full address."
           },
           "phone": {
-            "patterns": [
-              "(\\+91|0)[\\s-]?[6-9]\\d{9}",
-              "\\+?1?[\\s-]?\\(?\\d{3}\\)?[\\s-]?\\d{3}[\\s-]?\\d{4}"
-            ],
-            "must_be_indian": true
+            "candidate_pattern": "(?<!\\d)(?:(?:\\+?91|0)[\\s\\-]?)?(?:\\d[\\s\\-]?){9}\\d(?!\\d)",
+            "subscriber_digits": 10,
+            "allowed_leading_digits": "23456789",
+            "note": "Accepts STD landlines as well as mobiles. A mobile only pattern rejected a real published landline."
           },
           "email": {
-            "patterns": [
-              "[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}"
-            ],
-            "must_be_business_domain": false
+            "pattern": "[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}"
           }
         },
         "red_flags": [

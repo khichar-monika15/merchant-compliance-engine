@@ -7,15 +7,30 @@
     "gst_name": "FRESHKART PRIVATE LIMITED",
     "bank_name": "Fresh Kart Private Limited"
   },
-  "expected_score_range": [14, 24],
+  "expected_score_range": [
+    14,
+    24
+  ],
   "expected_grade": "F",
   "expected_stack": "static_html",
   "compliance_expected": {
-    "refund_policy": {"found": false},
-    "privacy_policy": {"found": false},
-    "terms_conditions": {"found": false},
-    "contact_info": {"found": true, "quality_score_min": 3, "quality_score_max": 5},
-    "gst_display": {"found": false}
+    "refund_policy": {
+      "found": false
+    },
+    "privacy_policy": {
+      "found": false
+    },
+    "terms_conditions": {
+      "found": false
+    },
+    "contact_info": {
+      "found": true,
+      "quality_score_min": 3,
+      "quality_score_max": 5
+    },
+    "gst_display": {
+      "found": false
+    }
   },
   "pci_expected": {
     "total_scripts_min": 21,
@@ -35,5 +50,5 @@
   },
   "critical_gaps_min": 11,
   "critical_gaps_max": 13,
-  "notes": "Grade F — no policy pages at all, 18 third-party scripts with 17 lacking SRI, no security headers, and Pvt./Private plus spacing mismatches across PAN, GST and bank. The only GSTIN on the site is a commented-out placeholder, which must not count as displayed."
+  "notes": "Grade F: no policy pages at all, 18 third-party scripts with 17 lacking SRI, no security headers, and Pvt./Private plus spacing mismatches across PAN, GST and bank. The only GSTIN on the site is a commented-out placeholder, which must not count as displayed."
 }

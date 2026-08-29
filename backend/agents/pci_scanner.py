@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
+from backend import knowledge
 from backend.agents._audit import failure
 from backend.models.schemas import AuditLogEntry, EngineState, PCIResult
 from backend.tools.csp_parser import analyze_security_headers
@@ -92,7 +93,9 @@ def _score_scripts(third_party_count: int, without_sri: int) -> tuple[int, list[
 
 
 # PCI 6.4.3 and 11.6.1 govern the pages that take payment, so grade those first
-_PAYMENT_PATH_HINTS = ("checkout", "payment", "pay", "cart", "billing", "order")
+# Payment page hints live in the PCI document; this module and the crawler used to keep
+# separate copies of the same idea.
+_PAYMENT_PATH_HINTS = tuple(knowledge.payment_page_patterns())
 
 
 def _headers_to_grade(crawl, site_url: str) -> tuple[str, dict[str, str]]:

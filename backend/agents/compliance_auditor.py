@@ -6,6 +6,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
+from backend import knowledge
 from backend.tools.llm_client import llm_complete
 from backend.agents._audit import failure
 from backend.models.schemas import (
@@ -17,18 +18,18 @@ from backend.models.schemas import (
 )
 
 _RBI_DB_PATH = Path(__file__).parent.parent / "knowledge" / "rbi_mdd_checklist.json"
-_GST_PATTERN = re.compile(r"\d{2}[A-Z]{5}\d{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}")
-# Exactly 10 subscriber digits, optional +91/0 trunk prefix, bounded by non-digits so the match
-# cannot run on into an adjacent number (a house number, a PIN code, an id inside a script)
-_PHONE_CANDIDATE = re.compile(r"(?<!\d)(?:(?:\+?91|0)[\s\-]?)?(?:\d[\s\-]?){9}\d(?!\d)")
-# An Indian postal address carries a 6-digit PIN code; requiring one kills the "india appears in
-# the footer" false positive that made has_address true for essentially every site
-_PIN_CODE = re.compile(r"(?<!\d)[1-9]\d{5}(?!\d)")
-_ADDRESS_KEYWORDS = (
-    "address", "road", "street", "nagar", "colony", "sector", "lane", "marg", "plot",
-    "floor", "building", "india",
-)
-_EMAIL_PATTERN = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
+
+# Every pattern below is declared in the checklist rather than written here, so the rules the
+# engine applies and the rules the checks page publishes cannot diverge.
+_GST_PATTERN = re.compile(knowledge.quality_criteria("RBI-005")["gst_pattern"])
+
+_CONTACT_ELEMENTS = knowledge.quality_criteria("RBI-004")["required_elements"]
+_PIN_CODE = re.compile(_CONTACT_ELEMENTS["physical_address"]["pin_code_pattern"])
+_ADDRESS_KEYWORDS = tuple(_CONTACT_ELEMENTS["physical_address"]["locality_keywords"])
+_PHONE_CANDIDATE = re.compile(_CONTACT_ELEMENTS["phone"]["candidate_pattern"])
+_PHONE_DIGITS = _CONTACT_ELEMENTS["phone"]["subscriber_digits"]
+_PHONE_LEADING = _CONTACT_ELEMENTS["phone"]["allowed_leading_digits"]
+_EMAIL_PATTERN = re.compile(_CONTACT_ELEMENTS["email"]["pattern"])
 
 
 def _load_rbi_db() -> dict:
@@ -113,7 +114,7 @@ def _has_indian_phone(text: str) -> bool:
         elif len(digits) == 11 and digits.startswith("0"):
             digits = digits[1:]
         # Indian subscriber numbers are 10 digits; mobiles start 6-9, landlines 2-8 by STD code
-        if len(digits) == 10 and digits[0] in "23456789":
+        if len(digits) == _PHONE_DIGITS and digits[0] in _PHONE_LEADING:
             return True
     return False
 
@@ -177,14 +178,31 @@ def _check_gst_display(all_html: str) -> tuple[bool, str | None]:
     return False, None
 
 
+def _expected_topics(check_def: dict, business_type: str) -> list[str]:
+    """Topics the checklist requires, plus any extras for this business type.
+
+    RBI-001 asks a SaaS refund policy about trial periods and pro-rata, and an e-commerce one
+    about shipping and damaged goods. Those variants were declared and never used, so every
+    merchant was judged against the same generic list.
+    """
+    criteria = check_def.get("quality_criteria", {})
+    topics = list(criteria.get("must_contain_topics", []))
+    variant = check_def.get("business_type_variations", {}).get(business_type, {})
+    topics += [t for t in variant.get("extra_topics", []) if t not in topics]
+    return topics
+
+
 async def _llm_quality_score(
-    policy_text: str, policy_type: str, business_type: str, fallback: int
+    policy_text: str, policy_type: str, business_type: str, topics: list[str], fallback: int
 ) -> tuple[int, str]:
     """Score policy quality 0-10 with the LLM, falling back to the rule-based score."""
+    expected = ", ".join(topics) if topics else "the topics a policy of this kind should cover"
     prompt = f"""You are a compliance analyst evaluating merchant policies for RBI Payment Aggregator guidelines.
 
 Policy type: {policy_type}
 Merchant business type: {business_type or 'unknown'}
+
+Topics this policy is required to cover: {expected}
 
 Policy content (first 2000 chars):
 {policy_text[:2000]}
@@ -192,8 +210,8 @@ Policy content (first 2000 chars):
 Rate this policy quality on a scale of 0-10 where:
 0-2: Missing or placeholder/template
 3-4: Present but extremely thin (under 100 words, no specifics)
-5-6: Present but incomplete (missing key topics like timeline/contact/eligibility)
-7-8: Adequate (covers main topics, has specifics)
+5-6: Present but incomplete (missing some of the required topics above)
+7-8: Adequate (covers the required topics, has specifics)
 9-10: Comprehensive (all topics, business-specific, legally sound)
 
 Respond in JSON only:
@@ -264,7 +282,11 @@ async def run(state: EngineState) -> dict:
             if found:
                 business_type = state.merchant_input.business_type or "unknown"
                 quality_score, details = await _llm_quality_score(
-                    _html_to_text(page_html), check_def["name"], business_type, fallback=quality_score
+                    _html_to_text(page_html),
+                    check_def["name"],
+                    business_type,
+                    topics=_expected_topics(check_def, business_type),
+                    fallback=quality_score,
                 )
                 if quality_score < 5:
                     llm_issues.append(f"Policy content appears inadequate: {details}")

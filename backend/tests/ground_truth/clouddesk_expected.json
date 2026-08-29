@@ -7,15 +7,34 @@
     "gst_name": "CLOUDDESK SOLUTIONS PRIVATE LIMITED",
     "bank_name": "CloudDesk Solutions Private Limited"
   },
-  "expected_score_range": [50, 62],
+  "expected_score_range": [
+    50,
+    62
+  ],
   "expected_grade": "C",
   "expected_stack": "nextjs",
   "compliance_expected": {
-    "refund_policy": {"found": true, "quality_score_min": 1, "quality_score_max": 4},
-    "privacy_policy": {"found": true, "quality_score_min": 1, "quality_score_max": 4},
-    "terms_conditions": {"found": false},
-    "contact_info": {"found": true, "quality_score_min": 9, "quality_score_max": 10},
-    "gst_display": {"found": false}
+    "refund_policy": {
+      "found": true,
+      "quality_score_min": 1,
+      "quality_score_max": 4
+    },
+    "privacy_policy": {
+      "found": true,
+      "quality_score_min": 1,
+      "quality_score_max": 4
+    },
+    "terms_conditions": {
+      "found": false
+    },
+    "contact_info": {
+      "found": true,
+      "quality_score_min": 9,
+      "quality_score_max": 10
+    },
+    "gst_display": {
+      "found": false
+    }
   },
   "pci_expected": {
     "total_scripts_min": 10,
@@ -34,5 +53,5 @@
   },
   "critical_gaps_min": 4,
   "critical_gaps_max": 6,
-  "notes": "Grade C — KYC is clean, but the refund and privacy pages are 40-60 word stubs that must score as inadequate rather than missing, T&C is absent and no GSTIN is displayed."
+  "notes": "Grade C: KYC is clean, but the refund and privacy pages are 40-60 word stubs that must score as inadequate rather than missing, T&C is absent and no GSTIN is displayed."
 }

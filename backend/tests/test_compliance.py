@@ -289,19 +289,19 @@ class TestLLMQualityScore:
 
     async def test_falls_back_to_rule_based_score(self, monkeypatch):
         monkeypatch.setattr("backend.agents.compliance_auditor.llm_complete", _empty_llm)
-        score, details = await _llm_quality_score("Lorem ipsum filler.", "Refund Policy", "ecommerce", fallback=2)
+        score, details = await _llm_quality_score("Lorem ipsum filler.", "Refund Policy", "ecommerce", topics=["timeline", "eligibility"], fallback=2)
         assert score == 2
         assert "unavailable" in details.lower()
 
     async def test_llm_score_wins_when_available(self, monkeypatch):
         monkeypatch.setattr("backend.agents.compliance_auditor.llm_complete", _scoring_llm)
-        score, details = await _llm_quality_score("A thorough refund policy.", "Refund Policy", "ecommerce", fallback=2)
+        score, details = await _llm_quality_score("A thorough refund policy.", "Refund Policy", "ecommerce", topics=["timeline", "eligibility"], fallback=2)
         assert score == 9
         assert details == "comprehensive"
 
     async def test_bare_code_fence_is_stripped(self, monkeypatch):
         monkeypatch.setattr("backend.agents.compliance_auditor.llm_complete", _bare_fence_llm)
-        score, _ = await _llm_quality_score("Some policy text.", "Refund Policy", "ecommerce", fallback=2)
+        score, _ = await _llm_quality_score("Some policy text.", "Refund Policy", "ecommerce", topics=["timeline", "eligibility"], fallback=2)
         assert score == 7
 
 

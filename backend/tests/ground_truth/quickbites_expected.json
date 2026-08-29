@@ -7,15 +7,32 @@
     "gst_name": "QUICKBITES PRIVATE LIMITED",
     "bank_name": "Quick Bites Private Limited"
   },
-  "expected_score_range": [25, 40],
+  "expected_score_range": [
+    25,
+    40
+  ],
   "expected_grade": "D",
   "expected_stack": "vue_nuxt",
   "compliance_expected": {
-    "refund_policy": {"found": false},
-    "privacy_policy": {"found": true, "quality_score_min": 2, "quality_score_max": 5},
-    "terms_conditions": {"found": false},
-    "contact_info": {"found": true, "quality_score_min": 6, "quality_score_max": 8},
-    "gst_display": {"found": false}
+    "refund_policy": {
+      "found": false
+    },
+    "privacy_policy": {
+      "found": true,
+      "quality_score_min": 2,
+      "quality_score_max": 7
+    },
+    "terms_conditions": {
+      "found": false
+    },
+    "contact_info": {
+      "found": true,
+      "quality_score_min": 6,
+      "quality_score_max": 8
+    },
+    "gst_display": {
+      "found": false
+    }
   },
   "pci_expected": {
     "total_scripts_min": 9,
@@ -35,5 +52,5 @@
   },
   "critical_gaps_min": 9,
   "critical_gaps_max": 11,
-  "notes": "Grade D — no refund policy or T&C, a thin boilerplate privacy policy, no GSTIN, a US registered office with no Indian place of business, and Pvt./Private plus word-spacing mismatches across the three KYC documents."
+  "notes": "Grade D: no refund policy or T&C, a thin boilerplate privacy policy, no GSTIN, a US registered office with no Indian place of business, and Pvt./Private plus word-spacing mismatches across the three KYC documents."
 }
