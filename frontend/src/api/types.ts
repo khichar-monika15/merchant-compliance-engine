@@ -241,7 +241,7 @@ export interface RiskEntry {
 }
 
 export interface StackSignature {
-  name: string
+  /** No display name is declared per stack; the object key is the identifier. */
   razorpay_recommendation: {
     product: string
     reason: string

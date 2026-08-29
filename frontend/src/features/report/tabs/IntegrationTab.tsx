@@ -41,6 +41,21 @@ export function IntegrationTab({ integration }: { integration: IntegrationResult
           <p className="mt-1 font-mono text-caption text-text-tertiary">
             {integration.integration_method}
           </p>
+          {integration.recommendation_reason && (
+            <p className="mt-2 text-body-sm text-text-secondary">
+              {integration.recommendation_reason}
+            </p>
+          )}
+          {integration.docs_url && (
+            <a
+              href={integration.docs_url}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 inline-block text-body-sm text-accent hover:underline"
+            >
+              Razorpay documentation
+            </a>
+          )}
 
           <div className="mt-4 flex items-start gap-2 rounded border border-surface-border bg-surface-raised p-3">
             {testOk ? (

@@ -13,11 +13,16 @@ import {
 
 import { Badge, Button, Card, cn } from '@/components/ui'
 
-/** Every number here is measured, not aspirational. */
+/**
+ * Every number here is measured, not aspirational, and the countable ones are asserted against
+ * the backend by `backend/tests/test_frontend_claims.py`. The timing is a real measurement of
+ * the four local sites on the rule path; an LLM-refined run adds model round trips and is
+ * slower, which is why the detail names the path rather than quoting one number for both.
+ */
 const METRICS = [
   { value: '7', label: 'specialist agents', detail: 'four running concurrently' },
   { value: '11', label: 'compliance checks', detail: '6 RBI, 5 PCI DSS' },
-  { value: '~20s', label: 'per full audit', detail: 'on a local test site' },
+  { value: '5 to 9s', label: 'per full audit', detail: 'four local sites, rule path' },
   { value: 'A to F', label: 'readiness grade', detail: 'weighted across four axes' },
 ]
 
@@ -193,8 +198,9 @@ export function LandingPage() {
             <h2 className="text-h1 text-text-primary">What gets checked</h2>
             <p className="mt-2 max-w-2xl text-body-sm text-text-secondary">
               Deterministic rules do the checking and hold the source of truth. The model is used
-              only where judgement is needed, to rate how substantive a policy document is, and
-              every score it produces has a rule based fallback.
+              in two places where judgement is needed: rating how substantive a policy document
+              is, and drafting a replacement when one is missing. It never decides whether a
+              check passes, and every score it produces has a rule based fallback.
             </p>
           </Reveal>
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

@@ -63,6 +63,19 @@ function GapRow({ gap }: { gap: GapItem }) {
               {gap.fix_suggestion}
             </p>
           )}
+          {gap.source_url && (
+            <p className="text-caption text-text-tertiary">
+              Found on{' '}
+              <a
+                href={gap.source_url}
+                target="_blank"
+                rel="noreferrer"
+                className="font-mono text-accent hover:underline"
+              >
+                {gap.source_url}
+              </a>
+            </p>
+          )}
         </div>
       )}
     </li>

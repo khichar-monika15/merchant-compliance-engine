@@ -88,7 +88,15 @@ function RbiCard({ check }: { check: RbiCheck }) {
         ) : null}
 
         {q.red_flags?.length ? (
-          <Section title="Red flags that cap the score at 2">
+          // The cap-at-2 rule lives in the policy quality scorer, which only the page-searched
+          // checks use. RBI-004 and RBI-005 score differently, so claiming it for them was wrong.
+          <Section
+            title={
+              check.detection_strategy === 'page_search'
+                ? 'Red flags that cap the score at 2'
+                : 'Placeholder values that do not count as compliant'
+            }
+          >
             <Chips items={q.red_flags} />
           </Section>
         ) : null}
@@ -120,7 +128,8 @@ function RbiCard({ check }: { check: RbiCheck }) {
 }
 
 function PciCard({ check }: { check: PciCheck }) {
-  const deductions = check.scoring?.deductions ?? []
+  const s = check.scoring ?? {}
+  const deductions = s.deductions ?? []
   return (
     <Card id={check.id} className="scroll-mt-20">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
@@ -142,19 +151,98 @@ function PciCard({ check }: { check: PciCheck }) {
 
       <p className="mb-4 text-body-sm text-text-secondary">{check.description}</p>
 
-      {deductions.length > 0 && (
-        <Section title="How points are lost">
-          <ul className="divide-y divide-surface-border-subtle">
-            {deductions.map((d, i) => (
-              <li key={i} className="flex flex-wrap items-baseline gap-2 py-1.5">
-                <code className="font-mono text-caption text-accent">{d.condition}</code>
-                <span className="font-mono text-caption text-status-danger">-{d.points}</span>
-                <span className="text-caption text-text-secondary">{d.reason}</span>
-              </li>
-            ))}
-          </ul>
-        </Section>
-      )}
+      <div className="space-y-3">
+        {deductions.length > 0 && (
+          <Section title="How points are lost">
+            <ul className="divide-y divide-surface-border-subtle">
+              {deductions.map((d, i) => (
+                <li key={i} className="flex flex-wrap items-baseline gap-2 py-1.5">
+                  <code className="font-mono text-caption text-accent">{d.condition}</code>
+                  <span className="font-mono text-caption text-status-danger">-{d.points}</span>
+                  <span className="text-caption text-text-secondary">{d.reason}</span>
+                </li>
+              ))}
+            </ul>
+          </Section>
+        )}
+
+        {/* Only PCI-001 uses `deductions`. Rendering that shape alone left four of five checks
+            looking like they had no scoring model at all. */}
+        {s.per_script_without_sri_deduction != null && (
+          <Section title="How points are lost">
+            <p className="text-caption text-text-secondary">
+              {s.per_script_without_sri_deduction} points per third-party script without an
+              integrity hash, capped at {s.max_deduction}.
+            </p>
+          </Section>
+        )}
+
+        {s.no_csp_deduction != null && (
+          <Section title="How points are lost">
+            <ul className="space-y-1">
+              {[
+                ['No CSP header', s.no_csp_deduction],
+                ['Weak CSP', s.weak_csp_deduction],
+                ['Moderate CSP', s.moderate_csp_deduction],
+                ['Strong CSP', s.strong_csp_deduction],
+              ].map(([label, points]) => (
+                <li key={String(label)} className="flex items-baseline gap-2">
+                  <span className="font-mono text-caption text-status-danger">-{points}</span>
+                  <span className="text-caption text-text-secondary">{label}</span>
+                </li>
+              ))}
+            </ul>
+          </Section>
+        )}
+
+        {s.headers?.length ? (
+          <Section title="Headers scored, and what each is worth">
+            <ul className="space-y-1">
+              {s.headers.map((h) => (
+                <li key={h.name} className="flex flex-wrap items-baseline gap-2">
+                  <code className="font-mono text-caption text-accent">{h.name}</code>
+                  <span className="font-mono text-caption text-text-tertiary">{h.points} pts</span>
+                  {h.requirement && (
+                    <span className="text-caption text-text-secondary">{h.requirement}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </Section>
+        ) : null}
+
+        {check.grading && (
+          <Section title="Strength bands">
+            <ul className="space-y-1">
+              {Object.entries(check.grading).map(([band, g]) => (
+                <li key={band} className="flex flex-wrap items-baseline gap-2">
+                  <span className="font-mono text-caption text-accent">{band}</span>
+                  <span className="font-mono text-caption text-text-tertiary">
+                    score &ge; {g.score_min}
+                  </span>
+                  <span className="text-caption text-text-secondary">{g.description}</span>
+                </li>
+              ))}
+            </ul>
+          </Section>
+        )}
+
+        {check.known_exemptions?.length ? (
+          <Section title="Exempt from this check">
+            <Chips items={check.known_exemptions} />
+            {check.notes && (
+              <p className="mt-1 text-caption text-text-tertiary">{check.notes}</p>
+            )}
+          </Section>
+        ) : null}
+
+        {!check.scoring && (
+          <p className="text-caption text-text-tertiary">
+            Classification only. This check labels every third-party script by risk and category
+            and raises no deduction of its own.
+          </p>
+        )}
+      </div>
     </Card>
   )
 }
@@ -250,6 +338,63 @@ export function ChecksPage() {
                 Headers are graded on a payment page where one exists, matched on:{' '}
                 {kb.pci.payment_page_patterns.join(', ')}.
               </p>
+            </section>
+
+            <section>
+              <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="text-h2 text-text-primary">
+                  Script risk taxonomy
+                  <span className="ml-2 text-body-sm text-text-tertiary">
+                    behind PCI-003
+                  </span>
+                </h2>
+                <p className="text-caption text-text-tertiary">
+                  updated {kb.script_risk.last_updated}
+                </p>
+              </div>
+              <Card>
+                <p className="mb-4 text-body-sm text-text-secondary">{kb.script_risk.notes}</p>
+                <div className="space-y-3">
+                  <Section title="Low risk domains">
+                    <Chips items={kb.script_risk.low_risk.flatMap((e) => e.domains)} />
+                  </Section>
+                  <Section title="Medium risk domains">
+                    <Chips items={kb.script_risk.medium_risk.flatMap((e) => e.domains)} />
+                  </Section>
+                  <Section title="Substrings that mark a script high risk">
+                    <Chips items={kb.script_risk.high_risk_indicators} />
+                  </Section>
+                </div>
+              </Card>
+            </section>
+
+            <section>
+              <h2 className="mb-4 text-h2 text-text-primary">
+                Stacks detected, and what each one gets recommended
+              </h2>
+              <div className="grid gap-4 md:grid-cols-2">
+                {Object.entries(kb.stacks).map(([key, stack]) => (
+                  <Card key={key}>
+                    <div className="mb-2">
+                      <code className="font-mono text-caption text-text-tertiary">{key}</code>
+                    </div>
+                    <p className="text-body-sm text-accent">
+                      {stack.razorpay_recommendation.product}
+                    </p>
+                    <p className="mt-1 text-caption text-text-secondary">
+                      {stack.razorpay_recommendation.reason}
+                    </p>
+                    <a
+                      href={stack.razorpay_recommendation.docs_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 inline-block text-caption text-accent hover:underline"
+                    >
+                      Documentation
+                    </a>
+                  </Card>
+                ))}
+              </div>
             </section>
 
             <section>

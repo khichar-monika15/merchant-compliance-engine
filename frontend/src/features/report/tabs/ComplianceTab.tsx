@@ -120,8 +120,9 @@ export function ComplianceTab({ compliance }: { compliance: ComplianceResult }) 
           <CardHeader title="Detected business category" />
           <p className="font-mono text-body-sm text-text-primary">{compliance.business_category}</p>
           <p className="mt-1 text-caption text-text-tertiary">
-            Selects which policy checklist variant applies, for example a SaaS refund policy rather
-            than an e-commerce one.
+            Inferred from the page content, and used to pick the template when a missing policy is
+            drafted. The checklist variant that scores the policies comes from the business type
+            submitted with the scan, not from this.
           </p>
         </Card>
       )}
