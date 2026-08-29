@@ -1,10 +1,14 @@
 """
 Run all 4 test sites through the MCIE engine and validate against ground truth.
 
-The bounds in `ground_truth/*.json` are set to hold on BOTH paths — rule-based scoring with no
-credentials, and LLM-refined scoring with them. Both are verified; the LLM moves individual policy
-quality scores by a point or two and the totals with them, but no grade changes. Widen a bound
-only after measuring both ways, never to make a run go green.
+The bounds in `ground_truth/*.json` are set to hold on BOTH paths, rule-based scoring with no
+credentials and LLM-refined scoring with them. The LLM moves individual policy quality scores by a
+point or two and the totals with them, but no grade changes. Widen a bound only after measuring
+both ways, never to make a run go green.
+
+One invocation exercises one path, whichever the environment supplies. Checking both means running
+it twice, and the banner below reports which path actually ran so a transcript cannot be mistaken
+for the other one.
 
 Serve the sites first, one per terminal:
     npx serve test-sites/freshkart-india      -p 4001
@@ -12,12 +16,19 @@ Serve the sites first, one per terminal:
     npx serve test-sites/clouddesk-saas       -p 4003
     npx serve test-sites/artisan-weaves       -p 4004
 
-Then: uv run python -m backend.tests.validate_ground_truth
+Then, for the LLM path:
+    uv run python -m backend.tests.validate_ground_truth
+
+And for the rule-only path:
+    env OPENAI_API_KEY="" ANTHROPIC_API_KEY="" uv run python -m backend.tests.validate_ground_truth
+
+Exits non-zero if any site fails, so it can gate a build.
 """
 from __future__ import annotations
 
 import asyncio
 import json
+import sys
 from pathlib import Path
 
 from backend.agents.orchestrator import run_pipeline
@@ -179,7 +190,21 @@ async def validate_one(name: str, gt_file: str) -> bool:
     return passed == total
 
 
-async def main():
+def _active_path() -> str:
+    """Which scoring path this run will take, named in the output so it cannot be misread."""
+    from backend.config import get_settings
+
+    settings = get_settings()
+    if settings.openai_api_key:
+        return f"LLM-refined via OpenAI-compatible endpoint ({settings.llm_model})"
+    if settings.anthropic_api_key:
+        return f"LLM-refined via Anthropic ({settings.anthropic_model})"
+    return "rule-only, no LLM credentials configured"
+
+
+async def main() -> bool:
+    print(f"Scoring path: {_active_path()}")
+
     results = []
     for name, gt_file in TEST_CASES:
         ok = await validate_one(name, gt_file)
@@ -188,12 +213,15 @@ async def main():
     print(f"\n{'='*60}")
     print("GROUND TRUTH VALIDATION SUMMARY")
     print(f"{'='*60}")
+    print(f"  Scoring path: {_active_path()}")
     for name, ok in results:
         status = "PASS" if ok else "FAIL"
         print(f"  [{status}] {name}")
     total_passed = sum(1 for _, ok in results if ok)
     print(f"\n{total_passed}/{len(results)} test sites passed")
+    return total_passed == len(results)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Without this the summary could read 0/4 and still exit 0, so nothing could gate on it.
+    sys.exit(0 if asyncio.run(main()) else 1)
