@@ -1,4 +1,4 @@
-// Types derived from backend/models/schemas.py — keep in sync
+// Types derived from backend/models/schemas.py, keep in sync
 
 export type Severity = 'critical' | 'warning' | 'info' | 'pass'
 
