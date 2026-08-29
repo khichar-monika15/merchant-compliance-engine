@@ -11,6 +11,7 @@ Synthetic e-commerce site for MCIE ground-truth validation. Deliberately non-com
 | RBI-003 T&C | Missing entirely |
 | RBI-004 Contact Info | Email only — no phone, no physical address |
 | RBI-005 GST Display | The only GSTIN is inside an HTML comment, so nothing is displayed |
+| RBI-007 Shipping Policy | No shipping or delivery page anywhere on the site |
 | PCI-001 Script Inventory | 18 third-party scripts |
 | PCI-002 SRI | Zero scripts have integrity attribute |
 | PCI-003 Script Risk | Facebook Pixel, Hotjar, Intercom, Segment, OneSignal, Mixpanel, Amplitude (all medium/high risk) |

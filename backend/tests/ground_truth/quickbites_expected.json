@@ -32,6 +32,9 @@
     },
     "gst_display": {
       "found": false
+    },
+    "shipping_policy": {
+      "found": false
     }
   },
   "pci_expected": {

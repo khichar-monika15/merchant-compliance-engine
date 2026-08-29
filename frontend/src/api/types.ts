@@ -41,6 +41,8 @@ export interface ComplianceResult {
   terms_conditions: ComplianceCheck
   contact_info: ComplianceCheck
   gst_display: ComplianceCheck
+  /** RBI-007. Null for merchants that deliver nothing physical, where the check does not apply. */
+  shipping_policy?: ComplianceCheck | null
   business_category?: string
   overall_score: number
 }

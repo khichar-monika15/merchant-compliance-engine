@@ -423,6 +423,73 @@
         ]
       },
       "business_type_variations": {}
+    },
+    {
+      "id": "RBI-007",
+      "category": "Policy Disclosure",
+      "name": "Shipping and Delivery Policy",
+      "severity": "critical",
+      "description": "Merchants selling physical goods must publish delivery timelines, shipping charges and the areas they serve. Not applicable to businesses that deliver nothing physical.",
+      "detection_strategy": "page_search",
+      "applies_to": [
+        "ecommerce",
+        "food_delivery"
+      ],
+      "search": {
+        "url_patterns": [
+          "/shipping",
+          "/delivery",
+          "/shipping-policy",
+          "/delivery-policy",
+          "/dispatch"
+        ],
+        "link_text_patterns": [
+          "shipping",
+          "delivery",
+          "dispatch"
+        ],
+        "footer_patterns": [
+          "shipping policy",
+          "delivery policy",
+          "shipping and delivery"
+        ],
+        "body_keywords": [
+          "shipping",
+          "delivery",
+          "dispatch",
+          "courier",
+          "delivery time"
+        ]
+      },
+      "quality_criteria": {
+        "min_word_count": 120,
+        "must_contain_topics": [
+          "delivery timeline",
+          "shipping charges",
+          "serviceable areas"
+        ],
+        "red_flags": [
+          "lorem ipsum",
+          "coming soon",
+          "under construction",
+          "tbd"
+        ]
+      },
+      "business_type_variations": {
+        "ecommerce": {
+          "extra_topics": [
+            "dispatch time",
+            "courier partner",
+            "order tracking"
+          ]
+        },
+        "food_delivery": {
+          "extra_topics": [
+            "delivery radius",
+            "estimated delivery time"
+          ]
+        }
+      }
     }
   ]
 }

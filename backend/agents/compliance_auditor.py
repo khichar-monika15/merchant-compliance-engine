@@ -57,8 +57,18 @@ def _html_to_text(html: str) -> str:
     return re.sub(r"\s*&\s*", " and ", text)
 
 
+def _applies(check_def: dict, business_type: str) -> bool:
+    """Whether a check is scored for this merchant.
+
+    RBI-007 declares applies_to, because marking a SaaS company down for having no shipping
+    policy is a gap it cannot close. A check with no applies_to applies to everyone.
+    """
+    scope = check_def.get("applies_to")
+    return not scope or business_type in scope
+
+
 def _overall_score(checks: list, gst_found: bool) -> int:
-    """RBI score out of 100: 80 for the four critical policies, 20 for GST display.
+    """RBI score out of 100: 80 for the applicable policies, 20 for GST display.
 
     Each policy contributes in proportion to its quality rather than passing a binary gate at 5.
     Under the gate a thin policy scraping a 5 scored the same as a thorough one, which meant the
@@ -242,6 +252,7 @@ async def run(state: EngineState) -> dict:
     t0 = datetime.now(timezone.utc)
 
     try:
+        business_type = state.merchant_input.business_type or "unknown"
         crawl = state.crawl_result
         pages = crawl.pages_found if crawl else {}
         identified = crawl.identified_pages if crawl else {}
@@ -278,7 +289,6 @@ async def run(state: EngineState) -> dict:
             details = ""
             llm_issues: list[str] = []
             if found:
-                business_type = state.merchant_input.business_type or "unknown"
                 quality_score, details, model_issues = await _llm_quality_score(
                     _html_to_text(page_html),
                     check_def["name"],
@@ -339,32 +349,45 @@ async def run(state: EngineState) -> dict:
         # Run policy checks concurrently — one failing check must not abort the others.
         # Which checks belong here is declared per check as detection_strategy, not listed here,
         # so adding a page-searched check to the checklist adds it to this run.
+        # Only the checks that apply to this merchant are run and scored.
+        applicable = [c for c in _PAGE_SEARCH_CHECKS if _applies(c, business_type)]
         results = await asyncio.gather(
-            *(_score_policy(c["id"], knowledge.page_type(c["id"])) for c in _PAGE_SEARCH_CHECKS),
+            *(_score_policy(c["id"], knowledge.page_type(c["id"])) for c in applicable),
             return_exceptions=True,
         )
-        refund_check, privacy_check, terms_check = [
-            r if isinstance(r, ComplianceCheck) else ComplianceCheck(
-                name=check["name"],
-                check_id=check["id"],
-                issues=[f"Check failed: {r}"],
-                severity=Severity(check["severity"]),
+        # Keyed by check id rather than unpacked positionally, so adding a page-searched check
+        # to the checklist cannot silently shift which variable holds which result.
+        by_id = {
+            check["id"]: (
+                r if isinstance(r, ComplianceCheck) else ComplianceCheck(
+                    name=check["name"],
+                    check_id=check["id"],
+                    issues=[f"Check failed: {r}"],
+                    severity=Severity(check["severity"]),
+                )
             )
-            for r, check in zip(results, _PAGE_SEARCH_CHECKS)
-        ]
+            for r, check in zip(results, applicable)
+        }
+        refund_check = by_id["RBI-001"]
+        privacy_check = by_id["RBI-002"]
+        terms_check = by_id["RBI-003"]
+        shipping_check = by_id.get("RBI-007")
 
         business_category = _detect_business_category(all_html)
 
-        overall = _overall_score(
-            [refund_check, privacy_check, terms_check, contact_check],
-            gst_found=gst_found,
-        )
+        # The scored pool follows applicability: a SaaS merchant is judged on four policies,
+        # a goods merchant on five.
+        scored = [refund_check, privacy_check, terms_check, contact_check]
+        if shipping_check is not None:
+            scored.append(shipping_check)
+        overall = _overall_score(scored, gst_found=gst_found)
 
         result = ComplianceResult(
             refund_policy=refund_check,
             privacy_policy=privacy_check,
             terms_conditions=terms_check,
             contact_info=contact_check,
+            shipping_policy=shipping_check,
             gst_display=gst_check,
             business_category=business_category,
             overall_score=overall,

@@ -53,6 +53,7 @@ KNOWLEDGE_FIELDS: dict[str, dict[str, tuple[str, str]]] = {
         "description": display(),
         "severity": applied("backend.agents.compliance_auditor"),
         "detection_strategy": applied("backend.agents.compliance_auditor"),
+        "applies_to": applied("backend.agents.compliance_auditor"),
         "search": applied("backend.agents.compliance_auditor"),
         "url_patterns": applied("backend.knowledge"),
         "link_text_patterns": applied("backend.knowledge"),
@@ -169,6 +170,7 @@ _CHECK_TO_PAGE_TYPE = {
     "RBI-002": "privacy",
     "RBI-003": "terms",
     "RBI-004": "contact",
+    "RBI-007": "shipping",
 }
 
 

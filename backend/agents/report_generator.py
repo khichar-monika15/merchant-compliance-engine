@@ -93,12 +93,17 @@ def _compliance_gaps(compliance) -> tuple[list[GapItem], list[GapItem]]:
         "contact": compliance.contact_info,
         "gst": compliance.gst_display,
     }
+    # Only present when RBI-007 applied. Without this a failing shipping check scored against
+    # the merchant and raised no gap explaining why.
+    if compliance.shipping_policy is not None:
+        checks["shipping"] = compliance.shipping_policy
     fix_hints = {
         "refund": "Add a Refund & Returns Policy page covering timeline, eligibility, and process",
         "privacy": "Add a Privacy Policy covering data collection, DPDP Act 2023 compliance, and user rights",
         "terms": "Add Terms & Conditions with Indian governing law and payment terms",
         "contact": "Add a Contact page with physical Indian address, phone number, and email",
         "gst": "Display your GSTIN in the website footer or About page",
+        "shipping": "Add a Shipping & Delivery page with dispatch time, delivery timeline, shipping charges and serviceable areas",
     }
 
     for key, check in checks.items():

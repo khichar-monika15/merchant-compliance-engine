@@ -11,6 +11,7 @@ Synthetic handloom e-commerce site for MCIE ground-truth validation. Nearly comp
 | RBI-003 T&C | PASS | Full terms page including governing law |
 | RBI-004 Contact Info | PASS | Full address (Lucknow UP), phone, email |
 | RBI-005 GST Display | PASS | GSTIN: 09ABCAW1234A1Z5 visible on multiple pages |
+| RBI-007 Shipping Policy | PASS | Dispatch time, delivery timeline, charges, serviceable areas, tracking |
 | PCI-002 SRI | PARTIAL | GTM and jQuery have SRI; Facebook Pixel does not |
 | PCI-004 CSP Header | FAIL | Not set (the only major gap) |
 | PCI-005 Security Headers | PASS | HSTS, X-Frame-Options: DENY, X-Content-Type-Options, Referrer-Policy all set |

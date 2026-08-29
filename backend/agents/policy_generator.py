@@ -34,6 +34,8 @@ def _select_template(policy_type: str, business_type: str) -> str:
         if business_type == "services":
             return "refund_services.md"
         return "refund_ecommerce.md"
+    if policy_type == "shipping":
+        return "shipping_ecommerce.md"
     if policy_type == "privacy":
         return "privacy_base.md"
     if policy_type == "terms":
@@ -85,6 +87,10 @@ async def run(state: EngineState) -> dict:
             "privacy": compliance.privacy_policy,
             "terms": compliance.terms_conditions,
         }
+        # Only offered when RBI-007 applied to this merchant, so a SaaS company is never
+        # handed a shipping policy it has no use for.
+        if compliance.shipping_policy is not None:
+            checks["shipping"] = compliance.shipping_policy
         for ptype, check in checks.items():
             if not check.found or check.quality_score < 5:
                 needed.append(ptype)
@@ -112,6 +118,9 @@ async def run(state: EngineState) -> dict:
             "WEBSITE_URL": website_url,
             "GST_NUMBER": "[Your GSTIN]",
             "JURISDICTION_CITY": "Bangalore",
+            "STANDARD_SHIPPING_COST": "50",
+            "EXPRESS_SHIPPING_COST": "150",
+            "FREE_SHIPPING_THRESHOLD": "500",
         }
 
         generated: list[GeneratedPolicy] = []

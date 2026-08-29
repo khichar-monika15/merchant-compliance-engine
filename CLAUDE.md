@@ -71,6 +71,8 @@ as missing. Ground truth encodes the local-serving values.
 - Compliance checks ground in `backend/knowledge/*.json` — never LLM memory alone. RBI checks read
   `rbi_mdd_checklist.json`; PCI scoring reads its deduction constants from
   `pci_dss_surface_checks.json`
+- A check may declare `applies_to`. RBI-007 shipping applies only to ecommerce and food delivery,
+  so a SaaS merchant is neither scored nor gapped on a policy it cannot need
 - The LLM refines policy quality scores; it never gates them. Every score has a rule-based fallback
   so a run without credentials still produces an honest report
 - Graceful failure: one agent error must not block others

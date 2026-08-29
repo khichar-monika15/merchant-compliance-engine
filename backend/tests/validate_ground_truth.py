@@ -129,10 +129,20 @@ async def validate_one(name: str, gt_file: str) -> bool:
         "terms_conditions": state.compliance_result.terms_conditions if state.compliance_result else None,
         "contact_info": state.compliance_result.contact_info if state.compliance_result else None,
         "gst_display": state.compliance_result.gst_display if state.compliance_result else None,
+        # None when RBI-007 does not apply to this merchant, which is a real outcome rather
+        # than a missing value.
+        "shipping_policy": state.compliance_result.shipping_policy if state.compliance_result else None,
     }
     for key, expected in gt.get("compliance_expected", {}).items():
-        check = checks.get(key)
+        if key not in checks:
+            # A fixture key the harness does not map used to be skipped in silence, so a typo
+            # disabled the assertion without anyone noticing.
+            raise KeyError(
+                f"{key!r} is expected in ground truth but the harness maps no check for it"
+            )
+        check = checks[key]
         if check is None:
+            print(f"    [SKIP] {key}: not applicable to this merchant")
             continue
         if "found" in expected:
             total += 1

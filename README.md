@@ -18,7 +18,7 @@ uv sync
 uv run playwright install chromium
 
 cp .env.example .env      # see Configuration below
-uv run pytest backend/tests/            # 428 tests, no credentials needed
+uv run pytest backend/tests/            # 433 tests, no credentials needed
 uv run uvicorn backend.main:app --reload --port 8000
 cd frontend && npm install && npm run dev   # http://localhost:5173
 ```
@@ -67,7 +67,7 @@ audit log without blocking the others.
 
 | Axis | Weight | Source |
 |---|---|---|
-| RBI compliance | 40% | 5 of the 6 checks in `backend/knowledge/rbi_mdd_checklist.json` (RBI-006 is scored under KYC) |
+| RBI compliance | 40% | The applicable checks in `backend/knowledge/rbi_mdd_checklist.json`: five for every merchant, plus RBI-007 shipping for those who deliver physical goods. RBI-006 name consistency is scored under KYC |
 | KYC consistency | 25% | How many of the 3 document pairs agree |
 | PCI DSS surface | 20% | 4 of the 5 checks in `backend/knowledge/pci_dss_surface_checks.json` carry points; PCI-003 classifies every third-party script and raises warnings, notably session recorders that can capture card entry, without taking points from the other four |
 | Integration readiness | 15% | Stack detected + starter code, with a live test order as a bonus |

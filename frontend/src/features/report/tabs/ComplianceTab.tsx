@@ -9,6 +9,8 @@ const CHECK_ORDER: Array<{ key: keyof ComplianceResult; requirement: string }> =
   { key: 'terms_conditions', requirement: 'RBI-003' },
   { key: 'contact_info', requirement: 'RBI-004' },
   { key: 'gst_display', requirement: 'RBI-005' },
+  // Absent for merchants RBI-007 does not apply to, and the row is simply not rendered.
+  { key: 'shipping_policy', requirement: 'RBI-007' },
 ]
 
 function QualityMeter({ score }: { score: number }) {
@@ -89,6 +91,7 @@ function CheckRow({ check, requirement }: { check: ComplianceCheck; requirement:
 }
 
 export function ComplianceTab({ compliance }: { compliance: ComplianceResult }) {
+  const rows = CHECK_ORDER.filter(({ key }) => compliance[key])
   return (
     <div className="space-y-4">
       <Card padded={false}>
@@ -96,8 +99,9 @@ export function ComplianceTab({ compliance }: { compliance: ComplianceResult }) 
           <div>
             <h3 className="text-h3 text-text-primary">RBI Merchant Due Diligence</h3>
             <p className="text-caption text-text-tertiary">
-              Five checks from backend/knowledge/rbi_mdd_checklist.json. Name consistency is
-              RBI-006 and appears on the KYC tab.
+              {rows.length} checks from backend/knowledge/rbi_mdd_checklist.json. Name
+              consistency is RBI-006 and appears on the KYC tab. Shipping is RBI-007 and applies
+              only to merchants who deliver physical goods.
             </p>
           </div>
           <div className="text-right">
@@ -107,11 +111,13 @@ export function ComplianceTab({ compliance }: { compliance: ComplianceResult }) 
         </div>
 
         <ul>
-          {CHECK_ORDER.map(({ key, requirement }) => {
-            const check = compliance[key] as ComplianceCheck
-            if (!check) return null
-            return <CheckRow key={requirement} check={check} requirement={requirement} />
-          })}
+          {rows.map(({ key, requirement }) => (
+            <CheckRow
+              key={requirement}
+              check={compliance[key] as ComplianceCheck}
+              requirement={requirement}
+            />
+          ))}
         </ul>
       </Card>
 

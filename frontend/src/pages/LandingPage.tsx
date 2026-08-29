@@ -21,7 +21,7 @@ import { Badge, Button, Card, cn } from '@/components/ui'
  */
 const METRICS = [
   { value: '7', label: 'specialist agents', detail: 'four running concurrently' },
-  { value: '11', label: 'compliance checks', detail: '6 RBI, 5 PCI DSS' },
+  { value: '12', label: 'compliance checks', detail: '7 RBI, 5 PCI DSS' },
   { value: '5 to 9s', label: 'per full audit', detail: 'four local sites, rule path' },
   { value: 'A to F', label: 'readiness grade', detail: 'weighted across four axes' },
 ]
@@ -30,7 +30,7 @@ const FEATURES = [
   {
     icon: ScrollText,
     title: 'RBI due diligence',
-    body: 'Refund, privacy, terms, contact and GSTIN display, checked against the Master Directions checklist rather than model memory.',
+    body: 'Refund, privacy, terms, contact, GSTIN display and, for merchants who ship goods, delivery terms. Checked against the Master Directions checklist rather than model memory.',
   },
   {
     icon: Lock,

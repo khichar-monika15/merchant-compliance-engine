@@ -19,7 +19,7 @@ _TEMPLATE_DIR = Path("backend/knowledge/policy_templates")
 _PLACEHOLDER = re.compile(r"\{\{([A-Z_]+)\}\}")
 
 # policy_generator builds `needed` from exactly these three compliance checks.
-POLICY_TYPES_THE_ENGINE_CAN_NEED = ("refund", "privacy", "terms")
+POLICY_TYPES_THE_ENGINE_CAN_NEED = ("refund", "privacy", "terms", "shipping")
 
 
 def _state(business_type: str = "ecommerce") -> EngineState:
@@ -101,7 +101,7 @@ class TestEveryTemplateIsReachable:
             f"and cannot produce them."
         )
 
-    @pytest.mark.parametrize("policy_type", ["refund", "privacy", "terms"])
+    @pytest.mark.parametrize("policy_type", POLICY_TYPES_THE_ENGINE_CAN_NEED)
     @pytest.mark.parametrize("business_type", ["ecommerce", "saas", "services", "food_delivery"])
     def test_every_selectable_template_exists(self, policy_type, business_type):
         name = pg._select_template(policy_type, business_type)

@@ -64,6 +64,8 @@ class ComplianceResult(BaseModel):
     contact_info: ComplianceCheck = Field(
         default_factory=lambda: ComplianceCheck(name="Contact Information", check_id="RBI-004")
     )
+    # Only scored for merchants that deliver something physical; RBI-007 declares which.
+    shipping_policy: Optional[ComplianceCheck] = None
     gst_display: ComplianceCheck = Field(
         default_factory=lambda: ComplianceCheck(
             name="GST Display", check_id="RBI-005", severity=Severity.WARNING

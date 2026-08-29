@@ -36,6 +36,11 @@
     },
     "gst_display": {
       "found": true
+    },
+    "shipping_policy": {
+      "found": true,
+      "quality_score_min": 8,
+      "quality_score_max": 10
     }
   },
   "pci_expected": {

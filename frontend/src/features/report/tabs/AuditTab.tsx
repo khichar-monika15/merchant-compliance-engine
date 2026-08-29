@@ -32,29 +32,34 @@ export function AuditTab({ log }: { log: AuditLogEntry[] }) {
 
       <ol className="divide-y divide-surface-border-subtle">
         {log.map((entry, i) => (
-          <li key={i} className="flex gap-4 px-5 py-3">
-            <span className="w-20 shrink-0 font-mono text-caption text-text-tertiary">
-              {formatTime(entry.timestamp)}
-            </span>
-            <span
-              className={cn(
-                'w-40 shrink-0 text-caption font-medium',
-                AGENT_TONE[entry.agent] ?? 'text-text-secondary',
+          // Four fixed columns needed 408px, so this row pushed the whole report sideways on a
+          // phone. Below sm the meta line wraps above the text; `sm:contents` dissolves the
+          // wrapper again so the original four column row is unchanged on wider screens.
+          <li key={i} className="px-5 py-3 sm:flex sm:gap-4">
+            <div className="flex items-baseline gap-3 sm:contents">
+              <span className="font-mono text-caption text-text-tertiary sm:w-20 sm:shrink-0">
+                {formatTime(entry.timestamp)}
+              </span>
+              <span
+                className={cn(
+                  'text-caption font-medium sm:w-40 sm:shrink-0',
+                  AGENT_TONE[entry.agent] ?? 'text-text-secondary',
+                )}
+              >
+                {entry.agent}
+              </span>
+              {entry.duration_ms != null && (
+                <span className="ml-auto font-mono text-caption text-text-tertiary sm:order-last sm:ml-0 sm:w-20 sm:text-right">
+                  {entry.duration_ms.toFixed(0)} ms
+                </span>
               )}
-            >
-              {entry.agent}
-            </span>
-            <span className="min-w-0 flex-1">
+            </div>
+            <div className="mt-1 min-w-0 sm:mt-0 sm:flex-1">
               <span className="block text-body-sm text-text-primary">{entry.action}</span>
               <span className="block break-words text-caption text-text-secondary">
                 {entry.result}
               </span>
-            </span>
-            {entry.duration_ms != null && (
-              <span className="w-20 shrink-0 text-right font-mono text-caption text-text-tertiary">
-                {entry.duration_ms.toFixed(0)} ms
-              </span>
-            )}
+            </div>
           </li>
         ))}
       </ol>

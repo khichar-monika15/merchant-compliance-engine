@@ -33,11 +33,12 @@ class TestKnowledgeEndpoint:
         with TestClient(create_app()) as c:
             yield c
 
-    def test_serves_all_eleven_checks(self, client):
+    def test_serves_every_check_on_disk(self, client):
+        """Derived, not a hardcoded count: adding a check should not need a test edit."""
         body = client.get("/api/knowledge").json()
         ids = [c["id"] for c in body["rbi"]["checks"]] + [c["id"] for c in body["pci"]["checks"]]
-        assert len(ids) == 11
-        assert "RBI-006" in ids and "PCI-004" in ids
+        expected = [c["id"] for c in _RBI["checks"]] + [c["id"] for c in _PCI["checks"]]
+        assert ids == expected
 
     def test_payload_matches_the_files_on_disk(self, client):
         body = client.get("/api/knowledge").json()
@@ -55,11 +56,12 @@ class TestKnowledgeEndpoint:
 
 class TestLoaders:
     def test_rbi_checks_load(self):
-        assert len(kb.rbi_checks()) == 6
-        assert [c["id"] for c in kb.rbi_checks()] == [f"RBI-00{i}" for i in range(1, 7)]
+        ids = [c["id"] for c in kb.rbi_checks()]
+        assert ids == [c["id"] for c in _RBI["checks"]]
+        assert ids == sorted(ids), "check ids should stay in declaration order"
 
     def test_pci_checks_load(self):
-        assert len(kb.pci_checks()) == 5
+        assert [c["id"] for c in kb.pci_checks()] == [c["id"] for c in _PCI["checks"]]
 
     def test_lookup_by_id(self):
         assert kb.rbi_check("RBI-001")["name"].startswith("Refund")
