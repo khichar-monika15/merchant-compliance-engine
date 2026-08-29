@@ -78,6 +78,39 @@ class TestIntegrationScore:
         assert _score_to_grade(overall) == "A"
 
 
+class TestKnowledgeBaseIntegrity:
+    """Detection rules and Razorpay recommendations must stay in one place and stay complete."""
+
+    def test_every_stack_has_a_recommendation_and_an_existing_template(self):
+        from pathlib import Path
+
+        from backend.agents.integration_advisor import _STARTER_DIR, _load_stacks_db
+
+        for name, cfg in _load_stacks_db()["stacks"].items():
+            rec = cfg.get("razorpay_recommendation")
+            assert rec, f"{name} has no razorpay_recommendation"
+            assert rec.get("product"), f"{name} has no product"
+            template = rec.get("starter_template")
+            assert template, f"{name} has no starter_template"
+            assert Path(_STARTER_DIR / template).exists(), f"{name} points at missing {template}"
+
+    def test_every_stack_the_code_can_pick_exists_in_the_knowledge_base(self):
+        from backend.agents.integration_advisor import _load_stacks_db, _pick_primary_stack
+
+        stacks = _load_stacks_db()["stacks"]
+        for name in stacks:
+            assert _pick_primary_stack({name: ["evidence"]}) in stacks
+
+    def test_detection_rules_use_only_supported_keys(self):
+        """A key the detector does not read is an inert rule — meta_name was one for months."""
+        from backend.tools.crawler_tools import TECH_STACK_SIGNALS
+
+        supported = {"html_contains", "meta", "headers", "cookies"}
+        for name, cfg in TECH_STACK_SIGNALS.items():
+            unknown = set(cfg.get("detection", {})) - supported
+            assert not unknown, f"{name} declares unread detection keys: {unknown}"
+
+
 class TestScoreBreakdown:
     """The breakdown the UI renders must reconcile with the headline score."""
 

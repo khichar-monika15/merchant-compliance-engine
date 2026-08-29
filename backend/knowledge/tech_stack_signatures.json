@@ -3,12 +3,20 @@
   "stacks": {
     "shopify": {
       "detection": {
-        "html_contains": ["myshopify.com", "Shopify.theme", "shopify-section", "cdn.shopify.com", "shopify-checkout"],
-        "meta": {"name": "shopify-checkout-api-token"}
+        "html_contains": [
+          "myshopify.com",
+          "Shopify.theme",
+          "shopify-section",
+          "cdn.shopify.com",
+          "shopify-checkout"
+        ],
+        "meta": {
+          "name": "shopify-checkout-api-token"
+        }
       },
       "razorpay_recommendation": {
         "product": "Razorpay Payment Button",
-        "reason": "Shopify stores are best served by the Razorpay Payment Button or the official Shopify app — no custom code needed",
+        "reason": "Shopify stores are best served by the Razorpay Payment Button or the official Shopify app \u2014 no custom code needed",
         "integration_method": "shopify_app",
         "starter_template": "shopify_razorpay_note.md",
         "docs_url": "https://razorpay.com/integrations/shopify/"
@@ -16,20 +24,51 @@
     },
     "woocommerce": {
       "detection": {
-        "html_contains": ["woocommerce", "wc-", "wc_cart", "wc_single_product"]
+        "html_contains": [
+          "woocommerce",
+          "wc-",
+          "wc_cart",
+          "wc_single_product"
+        ]
       },
       "razorpay_recommendation": {
         "product": "Razorpay WooCommerce Plugin",
-        "reason": "WooCommerce has an official Razorpay plugin — install from WordPress plugin directory",
+        "reason": "WooCommerce has an official Razorpay plugin \u2014 install from WordPress plugin directory",
         "integration_method": "woocommerce_plugin",
         "starter_template": "woocommerce_razorpay_note.md",
         "docs_url": "https://razorpay.com/integrations/woocommerce/"
       }
     },
+    "wordpress": {
+      "detection": {
+        "html_contains": [
+          "wp-content",
+          "wp-includes",
+          "wp-json"
+        ],
+        "meta": {
+          "name": "generator",
+          "content_prefix": "WordPress"
+        }
+      },
+      "razorpay_recommendation": {
+        "product": "Razorpay Payment Button",
+        "reason": "WordPress without WooCommerce \u2014 embed a Payment Button or Payment Page, no server code required",
+        "integration_method": "payment_button",
+        "starter_template": "html_razorpay.html",
+        "docs_url": "https://razorpay.com/docs/payments/payment-button/"
+      }
+    },
     "nextjs": {
       "detection": {
-        "html_contains": ["_next/static", "__NEXT_DATA__", "_next/chunks"],
-        "headers": {"x-powered-by": "Next.js"}
+        "html_contains": [
+          "_next/static",
+          "__NEXT_DATA__",
+          "_next/chunks"
+        ],
+        "headers": {
+          "x-powered-by": "Next.js"
+        }
       },
       "razorpay_recommendation": {
         "product": "Razorpay Standard Checkout",
@@ -41,7 +80,13 @@
     },
     "react": {
       "detection": {
-        "html_contains": ["react-dom", "data-reactroot", "__react", "ReactDOM", "root.render"]
+        "html_contains": [
+          "react-dom",
+          "data-reactroot",
+          "__react",
+          "ReactDOM",
+          "root.render"
+        ]
       },
       "razorpay_recommendation": {
         "product": "Razorpay Standard Checkout",
@@ -53,7 +98,12 @@
     },
     "vue_nuxt": {
       "detection": {
-        "html_contains": ["__nuxt", "vue-", "data-v-", "window.__nuxt"]
+        "html_contains": [
+          "__nuxt",
+          "vue-",
+          "data-v-",
+          "window.__nuxt"
+        ]
       },
       "razorpay_recommendation": {
         "product": "Razorpay Standard Checkout",
@@ -65,8 +115,15 @@
     },
     "django": {
       "detection": {
-        "html_contains": ["csrfmiddlewaretoken", "django", "__all__"],
-        "headers": {"x-frame-options": "SAMEORIGIN", "x-content-type-options": "nosniff"}
+        "html_contains": [
+          "csrfmiddlewaretoken",
+          "django",
+          "__all__"
+        ],
+        "headers": {
+          "x-frame-options": "SAMEORIGIN",
+          "x-content-type-options": "nosniff"
+        }
       },
       "razorpay_recommendation": {
         "product": "Razorpay Standard Checkout",
@@ -78,8 +135,14 @@
     },
     "laravel": {
       "detection": {
-        "cookies": ["laravel_session"],
-        "html_contains": ["csrf-token", "laravel", "XSRF-TOKEN"]
+        "cookies": [
+          "laravel_session"
+        ],
+        "html_contains": [
+          "csrf-token",
+          "laravel",
+          "XSRF-TOKEN"
+        ]
       },
       "razorpay_recommendation": {
         "product": "Razorpay Standard Checkout",

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from contextlib import AsyncExitStack
+from pathlib import Path
 from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
@@ -25,36 +27,17 @@ POLICY_LINK_TEXT_PATTERNS: dict[str, list[str]] = {
     "contact": ["contact", "reach us", "get in touch", "help", "support"],
 }
 
-TECH_STACK_SIGNALS: dict[str, dict] = {
-    "shopify": {
-        "html_contains": ["myshopify.com", "Shopify.theme", "shopify-section", "cdn.shopify.com"],
-        "meta_name": "shopify-checkout-api-token",
-    },
-    "wordpress": {
-        "html_contains": ["wp-content", "wp-includes"],
-        "meta": {"name": "generator", "content_prefix": "WordPress"},
-    },
-    "woocommerce": {
-        "html_contains": ["woocommerce", "wc-", "class=\"woo"],
-    },
-    "nextjs": {
-        "html_contains": ["_next/static", "__NEXT_DATA__", "_next/chunks"],
-        "header": {"x-powered-by": "Next.js"},
-    },
-    "react": {
-        "html_contains": ["react-dom", "data-reactroot", "__react", "ReactDOM"],
-    },
-    "vue_nuxt": {
-        "html_contains": ["__nuxt", "vue-", "data-v-"],
-    },
-    "django": {
-        "html_contains": ["csrfmiddlewaretoken"],
-    },
-    "laravel": {
-        "cookie": "laravel_session",
-    },
-    "static_html": {},
-}
+_STACK_DB_PATH = Path(__file__).parent.parent / "knowledge" / "tech_stack_signatures.json"
+
+
+def _load_stack_signals() -> dict[str, dict]:
+    with _STACK_DB_PATH.open() as f:
+        return json.load(f)["stacks"]
+
+
+# Single source of truth: detection rules and the Razorpay recommendation for each stack live
+# together in the knowledge base
+TECH_STACK_SIGNALS: dict[str, dict] = _load_stack_signals()
 
 
 def _get_base_domain(url: str) -> str:
@@ -80,30 +63,40 @@ def _classify_link_text(text: str) -> str | None:
 
 
 def _detect_tech_stack(html: str, headers: dict[str, str], cookies: list[str]) -> dict[str, list[str]]:
+    """Match the crawled page against the detection rules in tech_stack_signatures.json.
+
+    The rules live in the knowledge base rather than in this module so detection and the Razorpay
+    recommendation for a stack cannot drift apart.
+    """
     detected: dict[str, list[str]] = {}
     html_lower = html.lower()
-    lowered_headers = {k.lower(): v.lower() for k, v in headers.items()}
+    lowered_headers = {k.lower(): str(v).lower() for k, v in headers.items()}
 
-    for stack, signals in TECH_STACK_SIGNALS.items():
+    for stack, config in TECH_STACK_SIGNALS.items():
+        signals = config.get("detection", {})
         evidence: list[str] = []
 
         for pattern in signals.get("html_contains", []):
             if pattern.lower() in html_lower:
                 evidence.append(f"HTML contains '{pattern}'")
 
-        if "meta" in signals:
-            meta_info = signals["meta"]
-            if meta_info.get("content_prefix", "").lower() in html_lower:
-                evidence.append(f"Meta generator: {meta_info['content_prefix']}")
+        meta = signals.get("meta")
+        if meta:
+            # Either a named meta tag is present, or its content starts with a known value
+            prefix = meta.get("content_prefix", "")
+            name = meta.get("name", "")
+            if prefix and prefix.lower() in html_lower:
+                evidence.append(f"Meta generator: {prefix}")
+            elif name and f'name="{name.lower()}"' in html_lower:
+                evidence.append(f"Meta tag: {name}")
 
-        if "header" in signals:
-            for hkey, hval in signals["header"].items():
-                if hkey in lowered_headers and hval.lower() in lowered_headers[hkey]:
-                    evidence.append(f"Header {hkey}: {hval}")
+        for hkey, hval in signals.get("headers", {}).items():
+            if str(hval).lower() in lowered_headers.get(hkey.lower(), ""):
+                evidence.append(f"Header {hkey}: {hval}")
 
-        if "cookie" in signals:
-            if any(signals["cookie"] in c for c in cookies):
-                evidence.append(f"Cookie: {signals['cookie']}")
+        for cookie in signals.get("cookies", []):
+            if any(cookie.lower() in c.lower() for c in cookies):
+                evidence.append(f"Cookie: {cookie}")
 
         if evidence:
             detected[stack] = evidence
