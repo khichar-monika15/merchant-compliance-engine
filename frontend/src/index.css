@@ -1,7 +1,58 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-body {
-  @apply bg-gray-50 text-gray-900 antialiased;
+@layer base {
+  html {
+    background-color: theme('colors.surface.DEFAULT');
+    color: theme('colors.text.primary');
+    font-family: theme('fontFamily.sans');
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    min-height: 100vh;
+    background-color: theme('colors.surface.DEFAULT');
+  }
+
+  /* One scrollbar treatment for the whole app. Any scrollable region inherits it, so no
+     component defines its own. Firefox gets the two-property form, WebKit the pseudo-elements. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.surface.border') transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: theme('colors.surface.border');
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #2a3654;
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  ::selection {
+    background: rgba(13, 148, 251, 0.3);
+  }
+
+  *:focus-visible {
+    outline: 2px solid theme('colors.accent.DEFAULT');
+    outline-offset: 2px;
+  }
 }
