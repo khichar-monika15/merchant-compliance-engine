@@ -1,5 +1,7 @@
 import pytest
 
+from backend import knowledge
+
 from backend.agents.compliance_auditor import (
     _check_contact_page,
     _check_gst_display,
@@ -217,31 +219,10 @@ class TestHtmlToText:
         assert "terms and conditions" in result.lower()
 
 
-_TERMS_CHECK = {
-    "search": {
-        "body_keywords": [
-            "terms of service",
-            "terms and conditions",
-            "user agreement",
-            "governing law",
-            "dispute resolution",
-        ]
-    },
-    "quality_criteria": {"min_word_count": 300, "red_flags": ["lorem ipsum"]},
-}
-
-_REFUND_CHECK = {
-    "search": {
-        "body_keywords": [
-            "refund",
-            "return",
-            "cancellation",
-            "eligible",
-            "processing time",
-        ]
-    },
-    "quality_criteria": {"min_word_count": 200, "red_flags": ["lorem ipsum"]},
-}
+# These used to be hand-written copies of RBI-003 and RBI-001, so changing min_word_count or
+# body_keywords in the checklist could not fail these tests. They read the real checks now.
+_TERMS_CHECK = knowledge.rbi_check("RBI-003")
+_REFUND_CHECK = knowledge.rbi_check("RBI-001")
 
 
 class TestSearchPageForPolicy:

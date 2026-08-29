@@ -73,8 +73,15 @@ class TestIntegrationScore:
         assert _integration_score(result) == 40
 
     def test_grade_a_reachable_without_razorpay_keys(self):
-        """RBI 100, KYC 100, PCI 100, integration 70 must still reach grade A."""
-        overall = int(100 * 0.40 + 100 * 0.25 + 100 * 0.20 + 70 * 0.15)
+        """RBI 100, KYC 100, PCI 100, integration 70 must still reach grade A.
+
+        The weights come from the scorer. Re-typing them here meant the test kept passing while
+        the claim it makes went false, which is the failure this whole pass is about.
+        """
+        from backend.agents.report_generator import _WEIGHTS
+
+        scores = {"rbi_compliance": 100, "kyc": 100, "pci": 100, "integration": 70}
+        overall = int(sum(scores[key] * weight for key, weight in _WEIGHTS.items()))
         assert _score_to_grade(overall) == "A"
 
 

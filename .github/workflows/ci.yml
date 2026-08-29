@@ -29,6 +29,45 @@ jobs:
       - name: Run tests
         run: uv run pytest backend/tests/ -v
 
+  # The scores in the README and on the demo buttons are only trustworthy if something checks
+  # them. This ran on one machine, by hand, and printed a summary that exited 0 either way.
+  ground-truth:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Install Playwright browser
+        run: uv run playwright install --with-deps chromium
+
+      - name: Serve the four test sites
+        run: |
+          npx --yes serve test-sites/freshkart-india      -p 4001 &
+          npx --yes serve test-sites/quickbites-delivery  -p 4002 &
+          npx --yes serve test-sites/clouddesk-saas       -p 4003 &
+          npx --yes serve test-sites/artisan-weaves       -p 4004 &
+          for port in 4001 4002 4003 4004; do
+            for _ in $(seq 1 30); do
+              curl -sf "http://127.0.0.1:$port/" >/dev/null && break
+              sleep 1
+            done
+            curl -sf "http://127.0.0.1:$port/" >/dev/null || { echo "port $port never came up"; exit 1; }
+          done
+
+      # No credentials, so this is the rule-only path. The harness prints which path it took.
+      - name: Validate ground truth
+        run: uv run python -m backend.tests.validate_ground_truth
+
   frontend:
     runs-on: ubuntu-latest
     defaults:

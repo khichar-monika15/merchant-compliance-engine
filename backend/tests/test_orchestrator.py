@@ -126,9 +126,14 @@ class TestAgentConventions:
         "policy_generator", "integration_advisor", "report_generator",
     ]
 
+    # A corrupt crawl_result breaks exactly the agents that read it. The other three take their
+    # input from elsewhere and complete normally, so a docstring claiming this state makes every
+    # agent fail was wrong, and the assertions were too weak to notice.
+    CRAWL_READERS = ["webcrawler", "compliance_auditor", "pci_scanner", "integration_advisor"]
+
     @staticmethod
     def _broken_state():
-        """An EngineState that makes every agent fail, to exercise the error path."""
+        """An EngineState whose crawl_result is the wrong type."""
         from backend.models.schemas import EngineState, MerchantInput
 
         state = EngineState(merchant_input=MerchantInput(
@@ -148,6 +153,20 @@ class TestAgentConventions:
         assert isinstance(update, dict)
         assert update.get("audit_log"), f"{module_name} returned no audit entry"
         assert len(update["audit_log"]) == 1, "an agent contributes exactly one entry per run"
+
+    @pytest.mark.parametrize("module_name", CRAWL_READERS)
+    async def test_agent_degrades_to_an_error_entry(self, module_name):
+        """An agent that cannot do its work records why, instead of logging a success."""
+        import importlib
+
+        agent = importlib.import_module(f"backend.agents.{module_name}")
+        update = await agent.run(self._broken_state())
+
+        assert update.get("errors"), f"{module_name} recorded no error for an unusable crawl"
+        assert update["audit_log"][0].result.startswith("ERROR:"), (
+            f"{module_name} logged a success entry for a state it could not process: "
+            f"{update['audit_log'][0].result}"
+        )
 
     @pytest.mark.parametrize("module_name", AGENTS)
     async def test_agent_returns_only_declared_state_keys(self, module_name):
