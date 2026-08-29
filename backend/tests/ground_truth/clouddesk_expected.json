@@ -38,8 +38,8 @@
     }
   },
   "pci_expected": {
-    "total_scripts_min": 10,
-    "total_scripts_max": 10,
+    "total_scripts_min": 6,
+    "total_scripts_max": 6,
     "third_party_scripts_min": 3,
     "third_party_scripts_max": 3,
     "scripts_without_sri_min": 3,

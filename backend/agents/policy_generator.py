@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -127,18 +128,26 @@ async def run(state: EngineState) -> dict:
             "FREE_SHIPPING_THRESHOLD": "500",
         }
 
-        generated: list[GeneratedPolicy] = []
-
+        # The drafts are independent, and each model call can take up to the client's 60s timeout.
+        # Drafted one at a time, a merchant needing all four could spend 240s of the 300s pipeline
+        # budget here alone and time out with no report at all.
+        templates = {}
         for ptype in needed:
             tmpl_file = _select_template(ptype, business_type)
             template = _load_template(tmpl_file)
-
             if not template:
                 raise FileNotFoundError(f"policy template {tmpl_file} is missing")
+            templates[ptype] = template
 
-            content = await _generate_with_llm(ptype, template, company_name, business_type, website_url)
-            if not content:
-                content = _fill_template(template, base_replacements)
+        drafts = await asyncio.gather(*(
+            _generate_with_llm(ptype, templates[ptype], company_name, business_type, website_url)
+            for ptype in needed
+        ), return_exceptions=True)
+
+        generated: list[GeneratedPolicy] = []
+        for ptype, draft in zip(needed, drafts):
+            template = templates[ptype]
+            content = draft if isinstance(draft, str) and draft else _fill_template(template, base_replacements)
 
             # The prompt asks the model to replace every {{placeholder}}, and asking was the only
             # thing enforcing it. A model that ignored the instruction handed the merchant a

@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-import json
 from contextlib import AsyncExitStack
-from pathlib import Path
 from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
 from playwright.async_api import Browser, async_playwright
 
 from backend import knowledge
+from backend.config import get_settings
 from backend.tools.script_analyzer import extract_scripts
+
 
 def _policy_url_patterns() -> dict[str, list[str]]:
     """Discovery patterns from the RBI checklist, plus the PCI payment page list.
@@ -33,6 +33,72 @@ TECH_STACK_SIGNALS: dict[str, dict] = knowledge.tech_stack_document()["stacks"]
 
 def _get_base_domain(url: str) -> str:
     return urlparse(url).netloc.lower()
+
+
+def url_refusal_reason(url: str, allow_loopback: bool | None = None) -> str | None:
+    """Why this URL must not be scanned, or None when it is a fair target.
+
+    The crawler is a real browser pointed at whatever a caller asks for, and nothing checked the
+    target. A deployed instance would fetch a cloud metadata endpoint or any host on its own
+    network and hand the contents back inside the report.
+
+    Loopback stays reachable because the four demo sites are served there, but only when
+    `ALLOW_LOOPBACK_SCANS` says so, which is the default locally and not in a deployment.
+    """
+    import ipaddress
+    import socket
+
+    if allow_loopback is None:
+        allow_loopback = get_settings().allow_loopback_scans
+
+    parts = urlparse(url)
+    if parts.scheme not in ("http", "https"):
+        return f"{parts.scheme or 'that'} is not a scheme this engine fetches, use http or https"
+
+    host = parts.hostname
+    if not host:
+        return "no host in the URL"
+
+    if host in ("metadata.google.internal", "metadata"):
+        return "cloud metadata endpoints are never scanned"
+
+    # A hostname can resolve to a private address, so resolve before deciding.
+    try:
+        resolved = {info[4][0] for info in socket.getaddrinfo(host, None)}
+    except socket.gaierror:
+        try:
+            resolved = {str(ipaddress.ip_address(host))}
+        except ValueError:
+            return None  # unresolvable public name, the crawl reports its own failure
+
+    for address in resolved:
+        ip = ipaddress.ip_address(address)
+        if ip.is_loopback:
+            if not allow_loopback:
+                return "loopback addresses are not scannable on this instance"
+            continue
+        if ip.is_private or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+            return f"{host} resolves to {ip}, which is not a public address"
+
+    return None
+
+
+def _canonical_page(url: str) -> str:
+    """The document a URL points at, without the fragment or query that only decorate it."""
+    parts = urlparse(url)
+    return parts._replace(fragment="", query="").geturl()
+
+
+def _is_new_page(url: str, pages_found: dict[str, str]) -> bool:
+    """Whether this URL is a document the crawl has not already fetched.
+
+    An in-page anchor is not a page. `href="#refund"` joins to `https://site/#refund`, which used
+    to pass this filter, enter the frontier, and be registered by its link text as the canonical
+    refund page, so the homepage was re-fetched and graded as the refund policy.
+    """
+    canonical = _canonical_page(url)
+    seen = {_canonical_page(u) for u in pages_found}
+    return canonical not in seen and canonical.rstrip("/") not in {s.rstrip("/") for s in seen}
 
 
 def _classify_url_as_policy(url: str) -> str | None:
@@ -151,7 +217,10 @@ async def crawl_website(url: str, max_pages: int = 20, timeout: int = 30) -> dic
             for a_tag in soup.find_all("a", href=True):
                 href = a_tag["href"].strip()
                 full_url = urljoin(url, href)
-                if _get_base_domain(full_url) == base_domain and full_url not in pages_found:
+                if _get_base_domain(full_url) == base_domain and _is_new_page(full_url, pages_found):
+                    full_url = _canonical_page(full_url)
+                    if full_url in all_links:
+                        continue
                     all_links.append(full_url)
 
                     ptype = _classify_url_as_policy(full_url)
@@ -176,7 +245,7 @@ async def crawl_website(url: str, max_pages: int = 20, timeout: int = 30) -> dic
         for page_url in to_crawl:
             if crawled >= max_pages - 1:
                 break
-            if page_url in pages_found:
+            if not _is_new_page(page_url, pages_found):
                 continue
             html, headers = await fetch_page(page_url)
             if html:

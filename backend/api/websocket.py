@@ -10,6 +10,10 @@ router = APIRouter()
 
 _PING_INTERVAL_SECONDS = 30
 _MAX_TRACKED_JOBS = 50
+# How long one listener may hold up a broadcast before it is skipped for this message. Sends stay
+# awaited, rather than fired and forgotten, so a client still receives progress events in order;
+# this only bounds what a stalled one can cost the scan.
+_SEND_TIMEOUT_SECONDS = 2
 
 # job_id → ordered progress history, replayed to clients that connect mid-scan or after it
 progress_history: "OrderedDict[str, list[dict]]" = OrderedDict()
@@ -28,6 +32,18 @@ def _lock(job_id: str) -> asyncio.Lock:
     return _locks.setdefault(job_id, asyncio.Lock())
 
 
+def _drop_lock_if_untracked(job_id: str) -> None:
+    """Release the lock for a job nothing is tracking any more.
+
+    `_lock` creates an entry for any job id a caller mentions, and only `register_job` eviction
+    ever removed one, sweeping only ids it had itself registered. Anything connecting or
+    broadcasting with stale ids grew this dict for the lifetime of the process.
+    """
+    if job_id not in progress_history and not _connections.get(job_id):
+        _locks.pop(job_id, None)
+        _finished.discard(job_id)
+
+
 def register_job(job_id: str) -> None:
     """Start tracking a job, evicting the oldest once the retention cap is reached."""
     progress_history[job_id] = []
@@ -44,17 +60,34 @@ def finish_job(job_id: str) -> None:
 
 
 async def broadcast_progress(job_id: str, message: dict) -> None:
-    """Record a progress message and push it to every live listener."""
+    """Record a progress message and push it to every live listener.
+
+    Delivery is concurrent and bounded. This awaited each socket in turn, and the progress
+    callback is awaited from inside every graph node, so one suspended browser tab whose TCP
+    window had filled stopped `send_text` from returning and stalled the scan itself until the
+    pipeline timeout killed it. Every listener after the stalled one missed the event too.
+
+    A listener that cannot keep up loses this message rather than the scan losing the listener:
+    the socket stays open and the client catches up from `progress_history` on reconnect.
+    """
     async with _lock(job_id):
         if job_id in progress_history:
             progress_history[job_id].append(message)
         listeners = list(_connections.get(job_id, []))
 
-    for ws in listeners:
+    if not listeners:
+        _drop_lock_if_untracked(job_id)
+        return
+
+    payload = json.dumps(message)
+
+    async def _send(ws: WebSocket) -> None:
         try:
-            await ws.send_text(json.dumps(message))
+            await asyncio.wait_for(ws.send_text(payload), timeout=_SEND_TIMEOUT_SECONDS)
         except Exception:
-            pass  # the socket's own finally block removes it
+            pass  # slow or gone; the socket's own finally block removes it
+
+    await asyncio.gather(*(_send(ws) for ws in listeners))
 
 
 @router.websocket("/ws/scan/{job_id}")
@@ -71,6 +104,11 @@ async def scan_progress_ws(websocket: WebSocket, job_id: str):
         for msg in backlog:
             await websocket.send_text(json.dumps(msg))
 
+        # An id nobody registered is never marked finished, so this used to ping it forever.
+        if job_id not in progress_history:
+            await websocket.send_text(json.dumps({"type": "error", "message": "unknown job"}))
+            return
+
         while job_id not in _finished:
             await asyncio.sleep(_PING_INTERVAL_SECONDS)
             if job_id in _finished:
@@ -86,3 +124,4 @@ async def scan_progress_ws(websocket: WebSocket, job_id: str):
             connections.remove(websocket)
         if not connections:
             _connections.pop(job_id, None)
+        _drop_lock_if_untracked(job_id)

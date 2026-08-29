@@ -394,12 +394,16 @@ async def run(state: EngineState) -> dict:
         )
 
         duration_ms = (datetime.now(timezone.utc) - t0).total_seconds() * 1000
-        passed = sum(1 for c in [refund_check, privacy_check, terms_check, contact_check, gst_check] if c.found)
+        # Counted over the checks that actually applied. This was hardcoded to 5 and omitted
+        # shipping, so a goods merchant judged on six checks was told it passed n out of 5.
+        audited = [c for c in (refund_check, privacy_check, terms_check, contact_check,
+                               shipping_check, gst_check) if c is not None]
+        passed = sum(1 for c in audited if c.found)
         log = AuditLogEntry(
             timestamp=t0.isoformat(),
             agent="ComplianceAuditor",
             action="RBI MDD compliance audit",
-            result=f"Score {overall}/100, {passed}/5 checks passed",
+            result=f"Score {overall}/100, {passed}/{len(audited)} checks passed",
             duration_ms=round(duration_ms, 1),
         )
 

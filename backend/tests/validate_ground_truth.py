@@ -229,19 +229,31 @@ async def _active_path() -> str:
     from backend.tools.llm_client import llm_complete
 
     settings = get_settings()
-    if settings.openai_api_key:
+    # The same condition llm_complete uses. Branching on the key alone reported the model path
+    # for a run with OPENAI_BASE_URL empty, where llm_complete returns "" without raising and
+    # every score silently fell back to rules.
+    if settings.openai_api_key and settings.openai_base_url:
         configured = f"OpenAI-compatible endpoint ({settings.llm_model})"
     elif settings.anthropic_api_key:
         configured = f"Anthropic ({settings.anthropic_model})"
+    elif settings.openai_api_key:
+        return "rule-only, OPENAI_API_KEY is set but OPENAI_BASE_URL is empty, so nothing is called"
     else:
         return "rule-only, no LLM credentials configured"
 
     try:
-        await llm_complete("Reply with exactly: PONG")
+        answer = await llm_complete("Reply with exactly: PONG")
     except Exception as e:
         return (
             f"rule-only. {configured} is configured but UNREACHABLE "
             f"({type(e).__name__}), so every policy score fell back to rules"
+        )
+
+    # An empty completion is the fallback path wearing the configured path's name.
+    if not answer.strip():
+        return (
+            f"rule-only. {configured} is configured and returned an empty completion, "
+            "so every policy score fell back to rules"
         )
     return f"LLM-refined via {configured}, reachable"
 

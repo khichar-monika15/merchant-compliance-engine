@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     crawler_timeout: int = 30
     crawler_max_pages: int = 20
+    # The four demo sites are served on 127.0.0.1, so loopback has to be scannable locally. Turn
+    # this off in any deployment: the crawler is a browser pointed at caller-supplied URLs.
+    allow_loopback_scans: bool = True
     # Hard ceiling for one end-to-end scan, so a stalled crawl or LLM cannot pin a job forever
     pipeline_timeout: float = 300.0
 

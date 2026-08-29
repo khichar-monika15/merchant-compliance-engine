@@ -182,3 +182,49 @@ class TestJobEviction:
             }
         routes._evict_old_jobs()
         assert "oldest-running" in routes._jobs
+
+
+class TestTheBuiltFrontendIsServable:
+    """`npm run build` produced a UI that could not talk to anything.
+
+    The API client is same-origin by design, `/api` and `/ws` existed only through the Vite dev
+    proxy, `preview.proxy` was never configured, and FastAPI mounted no static files. So the
+    documented build command produced a bundle where every call 404s, and the app was only ever
+    runnable in dev mode. A judge who builds it should get a working app from one process.
+    """
+
+    def test_a_missing_build_does_not_break_the_api(self, client):
+        """A clone that has not run npm run build must still serve the API."""
+        assert client.get("/api/health").status_code == 200
+
+    def test_the_spa_is_mounted_when_a_build_exists(self, tmp_path, monkeypatch):
+        from fastapi.testclient import TestClient
+
+        from backend import main
+
+        dist = tmp_path / "dist"
+        (dist / "assets").mkdir(parents=True)
+        (dist / "index.html").write_text("<!doctype html><title>MCIE</title>")
+        (dist / "assets" / "app.js").write_text("console.log(1)")
+        monkeypatch.setattr(main, "_FRONTEND_DIST", dist)
+
+        with TestClient(main.create_app()) as c:
+            assert c.get("/api/health").status_code == 200, "mounting the SPA shadowed the API"
+            assert "MCIE" in c.get("/").text
+            assert c.get("/assets/app.js").status_code == 200
+            # Client-side routes must fall back to index.html rather than 404.
+            assert "MCIE" in c.get("/report/some-job-id").text
+
+    def test_an_unknown_api_route_still_404s(self, tmp_path, monkeypatch):
+        """The SPA fallback must not turn a wrong API path into a page."""
+        from fastapi.testclient import TestClient
+
+        from backend import main
+
+        dist = tmp_path / "dist"
+        dist.mkdir()
+        (dist / "index.html").write_text("<!doctype html><title>MCIE</title>")
+        monkeypatch.setattr(main, "_FRONTEND_DIST", dist)
+
+        with TestClient(main.create_app()) as c:
+            assert c.get("/api/does-not-exist").status_code == 404

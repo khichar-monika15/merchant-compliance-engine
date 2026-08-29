@@ -50,3 +50,56 @@ async def test_llm_responds():
 
     assert isinstance(result, str), "Expected a string response"
     assert len(result) > 0, "Endpoint reachable but returned an empty response"
+
+
+class TestTheReportedPathIsTheRealOne:
+    """A transcript claiming the LLM path must mean the model actually answered.
+
+    `_active_path` branched on `openai_api_key` alone while `llm_complete` requires the key AND
+    the base URL, and returns "" rather than raising when either is missing. So with a key set
+    and OPENAI_BASE_URL empty the probe raised nothing, and the banner printed "LLM-refined,
+    reachable" over a run where every policy score had fallen back to rules. That is the exact
+    false transcript the function's own docstring says it exists to prevent.
+    """
+
+    async def _path(self, monkeypatch, **env) -> str:
+        from backend.config import get_settings
+        from backend.tests.validate_ground_truth import _active_path
+
+        for key, value in env.items():
+            monkeypatch.setenv(key.upper(), value)
+        get_settings.cache_clear()
+        try:
+            return await _active_path()
+        finally:
+            get_settings.cache_clear()
+
+    async def test_a_key_without_a_base_url_is_not_the_llm_path(self, monkeypatch):
+        path = await self._path(
+            monkeypatch,
+            openai_api_key="sk-present-but-useless",
+            openai_base_url="",
+            anthropic_api_key="",
+        )
+        assert "LLM-refined" not in path, (
+            f"claimed the model path with no endpoint configured to reach: {path!r}"
+        )
+        assert "rule-only" in path, path
+
+    async def test_an_empty_model_response_is_not_the_llm_path(self, monkeypatch):
+        """A provider that returns nothing leaves every score on the rule fallback."""
+        from backend.tests import validate_ground_truth as vgt
+
+        async def silent(prompt, max_tokens=512):
+            return ""
+
+        monkeypatch.setattr("backend.tools.llm_client.llm_complete", silent)
+        path = await self._path(
+            monkeypatch,
+            openai_api_key="sk-test",
+            openai_base_url="https://example.invalid/v1",
+            anthropic_api_key="",
+        )
+        assert "LLM-refined" not in path, (
+            f"claimed the model path for a provider that returned nothing: {path!r}"
+        )

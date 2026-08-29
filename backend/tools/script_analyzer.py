@@ -1,24 +1,20 @@
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
 
-_RISK_DB_PATH = Path(__file__).parent.parent / "knowledge" / "script_risk_database.json"
-_risk_db: dict | None = None
+from backend import knowledge
 
 
 def _load_risk_db() -> dict:
-    global _risk_db
-    if _risk_db is None:
-        if _RISK_DB_PATH.exists():
-            with _RISK_DB_PATH.open() as f:
-                _risk_db = json.load(f)
-        else:
-            _risk_db = {"low_risk": [], "medium_risk": [], "high_risk_indicators": []}
-    return _risk_db
+    """The risk database, through the one loader that reads the knowledge files.
+
+    This module kept a private reader with a silent empty-dict fallback, so a missing or renamed
+    file would have downgraded every third-party script to "unknown" with nothing raised and no
+    score moving. `backend/knowledge.py` is documented as the single reader, and it fails loudly.
+    """
+    return knowledge.script_risk_document()
 
 
 def _extract_domain(src: str) -> str:

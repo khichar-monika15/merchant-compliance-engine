@@ -17,6 +17,7 @@ from backend.agents import (
 )
 from backend.config import get_settings
 from backend.models.schemas import EngineState, MerchantInput
+from backend.tools.crawler_tools import url_refusal_reason
 
 
 class GraphState(TypedDict, total=False):
@@ -62,6 +63,12 @@ def _validate_input(state: dict) -> dict:
         errors.append("GST legal name is required")
     if not inp.bank_account_name.strip():
         errors.append("Bank account name is required")
+
+    # Refuse before a browser is launched: the crawler fetches whatever it is pointed at.
+    refusal = url_refusal_reason(str(inp.website_url))
+    if refusal:
+        errors.append(f"Will not scan {inp.website_url}: {refusal}")
+
     return {"current_phase": "validated" if not errors else "error", "errors": errors}
 
 

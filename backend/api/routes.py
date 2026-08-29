@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from backend.agents.orchestrator import run_pipeline
+from backend.api import websocket
 from backend.api.websocket import broadcast_progress, finish_job, register_job
 from backend.config import get_settings
 from backend.models.database import AuditRun, Base
@@ -24,7 +25,10 @@ router = APIRouter(prefix="/api")
 # In-memory job store for live scans; completed runs also persist to SQLite (production
 # would use Redis/DB for both)
 _jobs: dict[str, dict] = {}
-_MAX_IN_MEMORY_JOBS = 100
+# Matched to the websocket module's history cap. These disagreed at 100 and 50, so a job could
+# still be in `_jobs` with its progress history already evicted, and a client reconnecting to it
+# replayed nothing while the job looked live.
+_MAX_IN_MEMORY_JOBS = websocket._MAX_TRACKED_JOBS
 
 # Strong references to running scans — the event loop only holds weak ones,
 # so without this a task can be garbage collected mid-scan

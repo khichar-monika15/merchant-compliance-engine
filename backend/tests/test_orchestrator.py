@@ -242,6 +242,29 @@ class TestValidationAborts:
         assert _route_after_validate({"current_phase": "error"}) == "abort"
         assert _route_after_validate({"current_phase": "validated"}) == "crawl_website"
 
+    async def test_a_metadata_endpoint_is_refused_without_launching_a_browser(self, monkeypatch):
+        """The refusal has to happen in validation, before anything is fetched."""
+        from backend.agents import orchestrator
+        from backend.models.schemas import MerchantInput
+
+        launched = False
+
+        async def _should_not_run(state):
+            nonlocal launched
+            launched = True
+            return {}
+
+        monkeypatch.setattr(orchestrator.webcrawler, "run", _should_not_run)
+
+        state = await orchestrator.run_pipeline(MerchantInput(
+            website_url="http://169.254.169.254/latest/meta-data/",
+            pan_name="Acme", gst_legal_name="Acme", bank_account_name="Acme",
+        ))
+
+        assert not launched, "the crawler was started for a link-local address"
+        assert state.readiness_report is None
+        assert any("Will not scan" in e for e in state.errors), state.errors
+
 
 class TestAgentConventions:
     """Project conventions that were documented but unenforced."""
