@@ -227,7 +227,11 @@ async def run(state: EngineState) -> dict:
         return {
             "readiness_report": report,
             "current_phase": "complete",
-            "audit_log": final_audit_log,
+            # Its own entry only. `audit_log` is an append-reducer channel, so returning the
+            # accumulated list appended a second copy of every earlier agent's entry: the final
+            # state carried each agent twice. The report itself was correct, which is why this
+            # never showed up on screen.
+            "audit_log": [log],
         }
 
     except Exception as e:

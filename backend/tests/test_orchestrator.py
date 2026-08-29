@@ -5,6 +5,8 @@ channel: any node returning a partial dict silently replaced the entire state. I
 because every node happened to return the whole state. These tests pin the contract so a future
 agent returning just its own key cannot wipe the report.
 """
+from pathlib import Path
+
 import pytest
 from langgraph.graph import END, StateGraph
 
@@ -251,3 +253,45 @@ class TestGraphShape:
         assert "__root__" not in channels
         for key in ("audit_log", "errors", "crawl_result", "readiness_report"):
             assert key in channels, f"{key} has no dedicated channel"
+
+
+class TestAuditLogAccumulatesOnce:
+    """`audit_log` is an append-reducer channel, so a node must return only its own entry.
+
+    ReportGenerator returned the whole accumulated list, which the reducer appended to what was
+    already there. The final state carried every agent twice. The report was built from a local
+    variable and stayed correct, so nothing on screen ever showed it.
+    """
+
+    async def test_no_agent_appears_twice_in_final_state(self):
+        import json
+
+        from backend.agents.orchestrator import run_pipeline
+        from backend.models.schemas import MerchantInput
+
+        gt = json.loads(Path("backend/tests/ground_truth/artisan_expected.json").read_text())
+        kyc = gt["kyc_input"]
+        state = await run_pipeline(MerchantInput(
+            website_url=gt["served_on"], pan_name=kyc["pan_name"],
+            gst_legal_name=kyc["gst_name"], bank_account_name=kyc["bank_name"],
+            business_type=gt["business_type"],
+        ))
+
+        agents = [entry.agent for entry in state.audit_log]
+        duplicates = sorted({a for a in agents if agents.count(a) > 1})
+        assert not duplicates, f"these agents logged more than once: {duplicates} in {agents}"
+
+    async def test_state_and_report_trails_agree(self):
+        import json
+
+        from backend.agents.orchestrator import run_pipeline
+        from backend.models.schemas import MerchantInput
+
+        gt = json.loads(Path("backend/tests/ground_truth/artisan_expected.json").read_text())
+        kyc = gt["kyc_input"]
+        state = await run_pipeline(MerchantInput(
+            website_url=gt["served_on"], pan_name=kyc["pan_name"],
+            gst_legal_name=kyc["gst_name"], bank_account_name=kyc["bank_name"],
+            business_type=gt["business_type"],
+        ))
+        assert len(state.audit_log) == len(state.readiness_report.audit_trail)

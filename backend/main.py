@@ -29,7 +29,8 @@ async def lifespan(app: FastAPI):
             browser = await p.chromium.launch(headless=True)
             await browser.close()
     except Exception as e:
-        print(f"[WARN] Playwright browser not available: {e}")
+        # Through the logger, so LOG_LEVEL governs it like everything else.
+        logging.getLogger(__name__).warning("Playwright browser not available: %s", e)
 
     yield
 
