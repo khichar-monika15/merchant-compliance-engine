@@ -259,39 +259,62 @@ class TestAuditLogAccumulatesOnce:
     """`audit_log` is an append-reducer channel, so a node must return only its own entry.
 
     ReportGenerator returned the whole accumulated list, which the reducer appended to what was
-    already there. The final state carried every agent twice. The report was built from a local
-    variable and stayed correct, so nothing on screen ever showed it.
+    already there, so the final state carried every agent twice. The report was built from a
+    local variable and stayed correct, which is why nothing on screen ever showed it.
+
+    Driven directly rather than through run_pipeline: the contract is about what the node
+    returns, and an end-to-end version needed a served test site, which the unit CI job has no
+    reason to provide.
     """
 
-    async def test_no_agent_appears_twice_in_final_state(self):
-        import json
+    @staticmethod
+    def _state_with_history():
+        from backend.models.schemas import AuditLogEntry, EngineState, MerchantInput
 
-        from backend.agents.orchestrator import run_pipeline
-        from backend.models.schemas import MerchantInput
-
-        gt = json.loads(Path("backend/tests/ground_truth/artisan_expected.json").read_text())
-        kyc = gt["kyc_input"]
-        state = await run_pipeline(MerchantInput(
-            website_url=gt["served_on"], pan_name=kyc["pan_name"],
-            gst_legal_name=kyc["gst_name"], bank_account_name=kyc["bank_name"],
-            business_type=gt["business_type"],
+        state = EngineState(merchant_input=MerchantInput(
+            website_url="https://example.com",
+            pan_name="Acme Pvt. Ltd.", gst_legal_name="ACME PRIVATE LIMITED",
+            bank_account_name="Acme Private Limited",
         ))
+        state.audit_log = [
+            AuditLogEntry(timestamp="2026-01-01T00:00:00", agent=name, action="a", result="r")
+            for name in ("WebCrawler", "ComplianceAuditor", "PCIScanner", "KYCValidator",
+                         "IntegrationAdvisor")
+        ]
+        return state
 
-        agents = [entry.agent for entry in state.audit_log]
-        duplicates = sorted({a for a in agents if agents.count(a) > 1})
-        assert not duplicates, f"these agents logged more than once: {duplicates} in {agents}"
+    async def test_report_generator_returns_only_its_own_entry(self):
+        from backend.agents import report_generator
 
-    async def test_state_and_report_trails_agree(self):
-        import json
+        state = self._state_with_history()
+        update = await report_generator.run(state)
 
-        from backend.agents.orchestrator import run_pipeline
-        from backend.models.schemas import MerchantInput
+        agents = [e.agent for e in update["audit_log"]]
+        assert agents == ["ReportGenerator"], (
+            f"ReportGenerator returned {len(agents)} entries into an append-reducer channel, "
+            f"which re-appends every earlier agent: {agents}"
+        )
 
-        gt = json.loads(Path("backend/tests/ground_truth/artisan_expected.json").read_text())
-        kyc = gt["kyc_input"]
-        state = await run_pipeline(MerchantInput(
-            website_url=gt["served_on"], pan_name=kyc["pan_name"],
-            gst_legal_name=kyc["gst_name"], bank_account_name=kyc["bank_name"],
-            business_type=gt["business_type"],
-        ))
-        assert len(state.audit_log) == len(state.readiness_report.audit_trail)
+    async def test_report_carries_the_whole_trail(self):
+        """Returning one entry must not shorten the trail the merchant sees."""
+        from backend.agents import report_generator
+
+        state = self._state_with_history()
+        update = await report_generator.run(state)
+        trail = [e.agent for e in update["readiness_report"].audit_trail]
+
+        assert trail == [
+            "WebCrawler", "ComplianceAuditor", "PCIScanner", "KYCValidator",
+            "IntegrationAdvisor", "ReportGenerator",
+        ], trail
+
+    async def test_final_state_has_each_agent_once(self):
+        """What the reducer produces, without needing a served site."""
+        from backend.agents import report_generator
+
+        state = self._state_with_history()
+        update = await report_generator.run(state)
+        merged = [e.agent for e in state.audit_log] + [e.agent for e in update["audit_log"]]
+
+        duplicates = sorted({a for a in merged if merged.count(a) > 1})
+        assert not duplicates, f"these agents would log more than once: {duplicates}"
