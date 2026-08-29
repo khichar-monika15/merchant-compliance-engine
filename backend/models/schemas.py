@@ -49,7 +49,7 @@ class ComplianceCheck(BaseModel):
     check_id: str
     found: bool = False
     url: Optional[str] = None
-    quality_score: int = 0           # 0–10
+    quality_score: int = 0           # 0-10
     severity: Severity = Severity.CRITICAL
     issues: list[str] = []
     details: Optional[str] = None
@@ -195,3 +195,6 @@ class ScanResponse(BaseModel):
     job_id: str
     status: str
     report: Optional[ReadinessReport] = None
+    # Why a scan failed. Without this the reason existed only in the WebSocket stream, so a
+    # reload turned "could not reach the site" into a bare "failed".
+    error: Optional[str] = None

@@ -91,7 +91,7 @@ async def _run_scan_job(job_id: str, merchant_input: MerchantInput) -> None:
 
 
 async def _persist_run(job_id: str, merchant_input: MerchantInput, state) -> None:
-    """Write the completed run to SQLite. Non-critical — a failure must not fail the scan."""
+    """Write the completed run to SQLite. Non-critical: a failure must not fail the scan."""
     try:
         engine = _get_engine()
         async with engine.begin() as conn:
@@ -183,7 +183,12 @@ async def _load_persisted_report(job_id: str) -> ScanResponse | None:
 async def get_scan(job_id: str):
     job = _jobs.get(job_id)
     if job:
-        return ScanResponse(job_id=job_id, status=job["status"], report=job.get("report"))
+        return ScanResponse(
+            job_id=job_id,
+            status=job["status"],
+            report=job.get("report"),
+            error=job.get("error"),
+        )
 
     persisted = await _load_persisted_report(job_id)
     if persisted:

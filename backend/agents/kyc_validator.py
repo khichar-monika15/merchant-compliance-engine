@@ -27,7 +27,7 @@ async def run(state: EngineState) -> dict:
             confidence=raw["confidence"],
         )
 
-        summary = "PASS" if kyc_result.overall_consistent else f"FAIL — {len(kyc_result.common_mismatches)} mismatches"
+        summary = "PASS" if kyc_result.overall_consistent else f"FAIL, {len(kyc_result.common_mismatches)} mismatches"
         return {
             "kyc_result": kyc_result,
             "audit_log": [audit_entry(t0, "KYCValidator", f"Validated KYC names for '{inp.pan_name}'", summary)],

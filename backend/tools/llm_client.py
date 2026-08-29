@@ -1,4 +1,4 @@
-"""Thin LLM wrapper — OpenAI-compatible (Bedrock mantle) or Anthropic direct API."""
+"""Thin LLM wrapper, OpenAI-compatible (Bedrock mantle) or Anthropic direct API."""
 from __future__ import annotations
 
 from functools import lru_cache

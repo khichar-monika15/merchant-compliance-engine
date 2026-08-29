@@ -66,6 +66,27 @@ class TestScanLookup:
         assert body["status"] == "running"
         assert body["report"] is None
 
+    def test_failed_scan_reports_its_reason(self, client):
+        """A failed scan must say why over REST, not only on the WebSocket.
+
+        The reason was stored server side and never returned, so reloading the page or opening
+        the report URL directly turned 'Could not reach the site' into a bare 'failed'.
+        """
+        routes._jobs["job-failed"] = {
+            "status": "failed",
+            "error": "Could not reach http://127.0.0.1:4999/, net::ERR_CONNECTION_REFUSED",
+            "report": None,
+        }
+        body = client.get("/api/scan/job-failed").json()
+
+        assert body["status"] == "failed"
+        assert body["report"] is None
+        assert "ERR_CONNECTION_REFUSED" in body["error"]
+
+    def test_successful_scan_has_no_error(self, client):
+        routes._jobs["job-ok"] = {"status": "running", "report": None}
+        assert client.get("/api/scan/job-ok").json()["error"] is None
+
     async def test_completed_scan_survives_eviction(self, client):
         """A scan dropped from memory must still be served from SQLite, not 404."""
         report = ReadinessReport(

@@ -41,12 +41,12 @@ async def run(state: EngineState) -> dict:
             return {
                 "crawl_result": crawl_result,
                 "current_phase": "crawl_failed",
-                "errors": [f"Could not reach {url} — {reason.splitlines()[0]}"],
+                "errors": [f"Could not reach {url}, {reason.splitlines()[0]}"],
                 "audit_log": [AuditLogEntry(
                     timestamp=t0.isoformat(),
                     agent="WebCrawler",
                     action=f"Crawled {url}",
-                    result=f"ERROR: site unreachable — {reason.splitlines()[0]}",
+                    result=f"ERROR: site unreachable, {reason.splitlines()[0]}",
                     duration_ms=round(duration_ms, 1),
                 )],
             }

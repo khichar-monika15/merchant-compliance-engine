@@ -83,13 +83,13 @@ def analyze_security_headers(headers: dict[str, str]) -> dict:
         if "includesubdomains" not in hsts_raw.lower():
             hsts["issues"].append("HSTS missing includeSubDomains")
     else:
-        hsts["issues"].append("HSTS header missing — HTTPS not enforced")
+        hsts["issues"].append("HSTS header missing, HTTPS not enforced")
 
     # X-Frame-Options
     xfo_raw = lowered.get("x-frame-options", "")
     xfo = {"present": bool(xfo_raw), "value": xfo_raw, "issues": []}
     if not xfo_raw:
-        xfo["issues"].append("X-Frame-Options missing — clickjacking risk")
+        xfo["issues"].append("X-Frame-Options missing, clickjacking risk")
     elif xfo_raw.upper() not in ("DENY", "SAMEORIGIN"):
         xfo["issues"].append(f"X-Frame-Options has unexpected value: {xfo_raw}")
 
@@ -103,7 +103,7 @@ def analyze_security_headers(headers: dict[str, str]) -> dict:
     rp_raw = lowered.get("referrer-policy", "")
     rp = {"present": bool(rp_raw), "value": rp_raw, "issues": []}
     if not rp_raw:
-        rp["issues"].append("Referrer-Policy missing — may leak URLs to third parties")
+        rp["issues"].append("Referrer-Policy missing, may leak URLs to third parties")
     elif rp_raw.lower() in ("unsafe-url", "no-referrer-when-downgrade"):
         rp["issues"].append(f"Referrer-Policy '{rp_raw}' leaks full URL to third parties")
 

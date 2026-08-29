@@ -176,7 +176,7 @@ def build_workflow(progress_fn=None):
 
     async def _report_node(state: dict) -> dict:
         if not state.get("policy_gen_result"):
-            await _emit("PolicyGenerator", "No policy gaps — generation skipped", 88, done=True)
+            await _emit("PolicyGenerator", "No policy gaps, generation skipped", 88, done=True)
         await _emit("ReportGenerator", "Generating readiness report", 90)
         result = await _generate_report(state)
         await _emit("ReportGenerator", "Report generation complete", 98, done=True)

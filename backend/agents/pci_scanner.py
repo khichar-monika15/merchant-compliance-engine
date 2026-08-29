@@ -57,8 +57,8 @@ def _score_headers(security_analysis: dict) -> tuple[int, list[str]]:
         score -= _CSP["moderate_csp_deduction"]
 
     suite = [
-        ("hsts", "Strict-Transport-Security", "HSTS missing — HTTPS not enforced"),
-        ("x_frame_options", "X-Frame-Options", "X-Frame-Options missing — clickjacking risk"),
+        ("hsts", "Strict-Transport-Security", "HSTS missing, HTTPS not enforced"),
+        ("x_frame_options", "X-Frame-Options", "X-Frame-Options missing, clickjacking risk"),
         ("x_content_type", "X-Content-Type-Options", "X-Content-Type-Options: nosniff missing"),
         ("referrer_policy", "Referrer-Policy", "Referrer-Policy missing"),
     ]
@@ -79,7 +79,7 @@ def _score_scripts(third_party_count: int, without_sri: int) -> tuple[int, list[
         if third_party_count > threshold:
             score -= points
             issues.append(
-                f"{third_party_count} third-party scripts loaded — {reason} "
+                f"{third_party_count} third-party scripts loaded, {reason} "
                 f"(PCI {_SCRIPT_INVENTORY['requirement']})"
             )
             break
@@ -125,7 +125,7 @@ async def run(state: EngineState) -> dict:
     try:
         crawl = state.crawl_result
         if crawl is None:
-            raise ValueError("Crawl result not available — crawl must complete before PCI scan")
+            raise ValueError("Crawl result not available, crawl must complete before PCI scan")
 
         scripts = crawl.scripts_found
         third_party = [s for s in scripts if not s.is_first_party and not s.is_inline]
@@ -157,7 +157,7 @@ async def run(state: EngineState) -> dict:
             timestamp=t0.isoformat(),
             agent="PCIScanner",
             action="PCI DSS v4.0.1 surface scan",
-            result=f"Score {total_score}/100 — {len(pci_result.critical_issues)} issues found "
+            result=f"Score {total_score}/100, {len(pci_result.critical_issues)} issues found "
                    f"({len(third_party)} 3rd-party scripts, {len(without_sri)} without SRI; "
                    f"headers graded on {graded_url or 'no page'})",
             duration_ms=round(duration_ms, 1),

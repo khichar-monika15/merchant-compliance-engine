@@ -76,7 +76,7 @@ async def run(state: EngineState) -> dict:
                 "policy_gen_result": PolicyGenResult(),
                 "audit_log": [audit_entry(
                     t0, "PolicyGenerator", "Policy generation check",
-                    "Skipped — no compliance result to work from",
+                    "Skipped, no compliance result to work from",
                 )],
             }
 
@@ -130,7 +130,7 @@ async def run(state: EngineState) -> dict:
                 if not content:
                     content = _fill_template(template, base_replacements)
             else:
-                content = f"# {ptype.title()} Policy\n\n*Policy generation failed — template not found.*"
+                content = f"# {ptype.title()} Policy\n\n*Policy generation failed, template not found.*"
 
             generated.append(GeneratedPolicy(
                 policy_type=ptype,

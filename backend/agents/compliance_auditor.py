@@ -144,11 +144,11 @@ def _check_contact_page(html: str) -> tuple[bool, list[str]]:
     if foreign:
         # A foreign address and a missing Indian one are the same finding — report the specific one
         issues.append(
-            f"Contact page shows an address outside India ('{foreign[0]}') — "
+            f"Contact page shows an address outside India ('{foreign[0]}'), "
             "RBI due diligence expects an Indian place of business"
         )
     elif not has_address:
-        issues.append("No physical address found — RBI requires a physical business address")
+        issues.append("No physical address found, RBI requires a physical business address")
 
     for flag in placeholders:
         issues.append(f"Placeholder contact detail on the contact page: '{flag}'")
@@ -161,7 +161,7 @@ _HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 
 
 def _is_placeholder_gstin(gstin: str) -> bool:
-    """Reject dummy GSTINs — the knowledge base red flags plus repeated-character fillers."""
+    """Reject dummy GSTINs: the knowledge base red flags plus repeated-character fillers."""
     if gstin in _RBI_RED_FLAG_GSTINS:
         return True
     letters = gstin[2:7]
@@ -202,12 +202,12 @@ Respond in JSON only:
     try:
         text = await llm_complete(prompt, max_tokens=256)
         if not text:
-            return fallback, "LLM scoring unavailable — rule-based score used"
+            return fallback, "LLM scoring unavailable, rule-based score used"
         text = _strip_code_fence(text)
         data = json.loads(text)
         return int(data.get("score", fallback)), data.get("details", "")
     except Exception as e:
-        return fallback, f"LLM scoring unavailable ({type(e).__name__}) — rule-based score used"
+        return fallback, f"LLM scoring unavailable ({type(e).__name__}), rule-based score used"
 
 
 def _strip_code_fence(text: str) -> str:
@@ -354,7 +354,7 @@ async def run(state: EngineState) -> dict:
             timestamp=t0.isoformat(),
             agent="ComplianceAuditor",
             action="RBI MDD compliance audit",
-            result=f"Score {overall}/100 — {passed}/5 checks passed",
+            result=f"Score {overall}/100, {passed}/5 checks passed",
             duration_ms=round(duration_ms, 1),
         )
 
@@ -365,7 +365,7 @@ async def run(state: EngineState) -> dict:
         # A silent LLM failure would otherwise pass every policy at the threshold score
         if any((c.details or "").startswith("LLM scoring unavailable") for c in (refund_check, privacy_check, terms_check)):
             update["errors"] = [
-                "ComplianceAuditor: LLM unavailable — policy quality scored by rules only"
+                "ComplianceAuditor: LLM unavailable, policy quality scored by rules only"
             ]
         return update
 

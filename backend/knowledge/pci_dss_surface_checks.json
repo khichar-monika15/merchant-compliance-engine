@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "source": "PCI DSS v4.0.1 — Requirements 6.4.3 and 11.6.1 (surface-level external checks only)",
+  "source": "PCI DSS v4.0.1, Requirements 6.4.3 and 11.6.1 (surface-level external checks only)",
   "checks": [
     {
       "id": "PCI-001",
@@ -30,7 +30,7 @@
         "max_deduction": 25
       },
       "known_exemptions": ["razorpay.com", "checkout.razorpay.com", "stripe.com"],
-      "notes": "Payment provider scripts often cannot use SRI due to dynamic versioning — these are exempt."
+      "notes": "Payment provider scripts often cannot use SRI due to dynamic versioning, these are exempt."
     },
     {
       "id": "PCI-003",

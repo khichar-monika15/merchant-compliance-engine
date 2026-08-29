@@ -74,7 +74,7 @@ async def run(state: EngineState) -> dict:
         test_payment = await _test_order()
 
         result = IntegrationResult(
-            detected_stack=tech_signals,  # {stack_name: [evidence_strings]} — Record<string, string[]>
+            detected_stack=tech_signals,  # {stack_name: [evidence_strings]} maps to Record<string, string[]>
             recommended_product=rec.get("product", "Razorpay Standard Checkout"),
             integration_method=rec.get("integration_method", "standard_checkout"),
             starter_code=starter_code,

@@ -50,7 +50,7 @@ def _kyc_score(kyc) -> int:
 
 
 def _integration_score(integration) -> int:
-    """Readiness to integrate. A live test order is a bonus, not a gate — a merchant is not
+    """Readiness to integrate. A live test order is a bonus, not a gate. A merchant is not
     penalised because the operator has no Razorpay keys configured."""
     if integration is None:
         return 0
@@ -62,14 +62,14 @@ def _integration_score(integration) -> int:
 
 def _estimate_fix_time(critical: int, warnings: int) -> str:
     if critical == 0 and warnings == 0:
-        return "No fixes needed — ready for Razorpay onboarding"
+        return "No fixes needed, ready for Razorpay onboarding"
     if critical == 0:
-        return "1–2 hours (minor improvements only)"
+        return "1-2 hours (minor improvements only)"
     if critical <= 2:
-        return "1–2 days (add missing policies, fix contact info)"
+        return "1-2 days (add missing policies, fix contact info)"
     if critical <= 4:
-        return "3–5 days (multiple policy documents needed, KYC alignment required)"
-    return "1–2 weeks (major compliance overhaul required)"
+        return "3-5 days (multiple policy documents needed, KYC alignment required)"
+    return "1-2 weeks (major compliance overhaul required)"
 
 
 def _compliance_gaps(compliance) -> tuple[list[GapItem], list[GapItem], list[GapItem]]:
@@ -143,7 +143,7 @@ def _kyc_gaps(kyc) -> tuple[list[GapItem], list[GapItem], list[GapItem]]:
             description=mismatch,
             severity=Severity.CRITICAL,
             category="kyc",
-            fix_suggestion="Ensure the business name is identical across PAN certificate, GST registration, and bank account — resolve abbreviation differences like Pvt./Private and Ltd./Limited",
+            fix_suggestion="Ensure the business name is identical across PAN certificate, GST registration, and bank account, resolve abbreviation differences like Pvt./Private and Ltd./Limited",
         ))
 
     return critical, warnings, info
