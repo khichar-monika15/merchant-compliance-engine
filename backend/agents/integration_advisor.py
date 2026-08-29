@@ -7,16 +7,11 @@ from pathlib import Path
 
 from backend.agents._audit import failure
 from backend.models.schemas import AuditLogEntry, EngineState, IntegrationResult
+from backend import knowledge
 from backend.tools.razorpay_client import create_order
 
-_STACKS_DB_PATH = Path(__file__).parent.parent / "knowledge" / "tech_stack_signatures.json"
 _STARTER_DIR = Path(__file__).parent.parent / "knowledge" / "starter_code_templates"
 _TEST_ORDER_TIMEOUT_SECONDS = 10
-
-
-def _load_stacks_db() -> dict:
-    with _STACKS_DB_PATH.open() as f:
-        return json.load(f)
 
 
 def _pick_primary_stack(tech_signals: dict[str, list[str]]) -> str:
@@ -68,7 +63,7 @@ async def run(state: EngineState) -> dict:
     try:
         crawl = state.crawl_result
         tech_signals = crawl.tech_stack_signals if crawl else {}
-        stacks_db = _load_stacks_db()["stacks"]
+        stacks_db = knowledge.tech_stack_document()["stacks"]
 
         primary_stack = _pick_primary_stack(tech_signals)
         stack_info = stacks_db.get(primary_stack, stacks_db["static_html"])

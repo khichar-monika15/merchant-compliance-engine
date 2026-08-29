@@ -91,9 +91,10 @@ class TestKnowledgeBaseIntegrity:
     def test_every_stack_has_a_recommendation_and_an_existing_template(self):
         from pathlib import Path
 
-        from backend.agents.integration_advisor import _STARTER_DIR, _load_stacks_db
+        from backend import knowledge
+        from backend.agents.integration_advisor import _STARTER_DIR
 
-        for name, cfg in _load_stacks_db()["stacks"].items():
+        for name, cfg in knowledge.tech_stack_document()["stacks"].items():
             rec = cfg.get("razorpay_recommendation")
             assert rec, f"{name} has no razorpay_recommendation"
             assert rec.get("product"), f"{name} has no product"
@@ -102,11 +103,40 @@ class TestKnowledgeBaseIntegrity:
             assert Path(_STARTER_DIR / template).exists(), f"{name} points at missing {template}"
 
     def test_every_stack_the_code_can_pick_exists_in_the_knowledge_base(self):
-        from backend.agents.integration_advisor import _load_stacks_db, _pick_primary_stack
+        from backend import knowledge
+        from backend.agents.integration_advisor import _pick_primary_stack
 
-        stacks = _load_stacks_db()["stacks"]
+        stacks = knowledge.tech_stack_document()["stacks"]
         for name in stacks:
             assert _pick_primary_stack({name: ["evidence"]}) in stacks
+
+    def test_every_declared_stack_is_in_the_priority_list(self):
+        """One stack at a time is the case the untyped fallback rescues.
+
+        wordpress was missing from the priority list and this suite passed, because feeding a
+        single detection falls through to `next(iter(...))` and returns it anyway. A stack only
+        reachable by that fallback loses to any other signal on a real site.
+        """
+        import inspect
+        import re
+
+        from backend import knowledge
+        from backend.agents.integration_advisor import _pick_primary_stack
+
+        listed = set(re.findall(r'"(\w+)"', inspect.getsource(_pick_primary_stack)))
+        declared = set(knowledge.tech_stack_document()["stacks"])
+        missing = sorted(declared - listed)
+        assert not missing, (
+            f"{missing} are declared stacks the priority list never names, so they can only win "
+            f"when nothing else is detected"
+        )
+
+    def test_a_declared_stack_beats_a_later_one(self):
+        """wordpress must not lose to react just because it was absent from the list."""
+        from backend.agents.integration_advisor import _pick_primary_stack
+
+        assert _pick_primary_stack({"wordpress": ["x"], "react": ["y"]}) == "wordpress"
+        assert _pick_primary_stack({"wordpress": ["x"], "woocommerce": ["y"]}) == "woocommerce"
 
     def test_detection_rules_use_only_supported_keys(self):
         """A key the detector does not read is an inert rule — meta_name was one for months."""

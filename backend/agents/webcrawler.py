@@ -24,12 +24,10 @@ async def run(state: EngineState) -> dict:
             pages_found={k: v for k, v in raw["pages_found"].items()},
             scripts_found=[ScriptInfo(**s) for s in raw["scripts_found"]],
             http_headers=raw["http_headers"],
-            navigation_links=raw["navigation_links"],
             identified_pages=raw["identified_pages"],
             tech_stack_signals=raw["tech_stack_signals"],
             crawl_errors=raw["crawl_errors"],
             pages_crawled=raw["pages_crawled"],
-            crawl_duration_seconds=raw["crawl_duration_seconds"],
         )
 
         duration_ms = (datetime.now(timezone.utc) - t0).total_seconds() * 1000

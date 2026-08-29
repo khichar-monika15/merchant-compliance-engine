@@ -66,6 +66,7 @@ async def _run_scan_job(job_id: str, merchant_input: MerchantInput) -> None:
             reason = "; ".join(state.errors) or "Pipeline produced no report"
             _jobs[job_id]["status"] = "failed"
             _jobs[job_id]["error"] = reason
+            await _persist_run(job_id, merchant_input, state, status="failed", error=reason)
             await progress_callback("Orchestrator", f"Error: {reason}", -1, event_type="error")
             return
 
@@ -79,6 +80,7 @@ async def _run_scan_job(job_id: str, merchant_input: MerchantInput) -> None:
     except Exception as e:
         _jobs[job_id]["status"] = "failed"
         _jobs[job_id]["error"] = str(e)
+        await _persist_run(job_id, merchant_input, None, status="failed", error=str(e))
         await broadcast_progress(job_id, {
             "type": "error",
             "agent": "Orchestrator",
@@ -90,21 +92,33 @@ async def _run_scan_job(job_id: str, merchant_input: MerchantInput) -> None:
         finish_job(job_id)
 
 
-async def _persist_run(job_id: str, merchant_input: MerchantInput, state) -> None:
-    """Write the completed run to SQLite. Non-critical: a failure must not fail the scan."""
+async def _persist_run(
+    job_id: str,
+    merchant_input: MerchantInput,
+    state,
+    status: str = "completed",
+    error: str | None = None,
+) -> None:
+    """Write the run to SQLite. Non-critical: a failure here must not fail the scan.
+
+    Failed runs are written too. They used not to be, so once the in-memory job was evicted a
+    failed scan returned 404 rather than the reason it failed.
+    """
     try:
         engine = _get_engine()
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
         async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+        report = state.readiness_report if state is not None else None
         async with async_session() as session:
             session.add(AuditRun(
                 job_id=job_id,
                 website_url=str(merchant_input.website_url),
-                status="completed",
-                overall_score=state.readiness_report.overall_score,
-                grade=state.readiness_report.grade,
-                report_json=json.dumps(state.readiness_report.model_dump(mode="json")),
+                status=status,
+                overall_score=report.overall_score if report else 0,
+                grade=report.grade if report else "F",
+                report_json=json.dumps(report.model_dump(mode="json")) if report else None,
+                error=error,
                 completed_at=datetime.now(timezone.utc),
             ))
             await session.commit()
@@ -220,7 +234,7 @@ async def _load_persisted_report(job_id: str) -> ScanResponse | None:
     if row is None:
         return None
     report = ReadinessReport.model_validate(json.loads(row.report_json)) if row.report_json else None
-    return ScanResponse(job_id=job_id, status=row.status, report=report)
+    return ScanResponse(job_id=job_id, status=row.status, report=report, error=row.error)
 
 
 @router.get("/scan/{job_id}", response_model=ScanResponse)

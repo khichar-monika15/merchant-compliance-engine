@@ -34,12 +34,10 @@ class CrawlResult(BaseModel):
     pages_found: dict[str, str] = {}          # {url: html_content}
     scripts_found: list[ScriptInfo] = []
     http_headers: dict[str, dict] = {}         # {url: {header: value}}
-    navigation_links: list[str] = []
     identified_pages: dict[str, str] = {}      # {type: url}
     tech_stack_signals: dict[str, list[str]] = {}
     crawl_errors: list[str] = []
     pages_crawled: int = 0
-    crawl_duration_seconds: float = 0.0
 
 
 class ComplianceCheck(BaseModel):

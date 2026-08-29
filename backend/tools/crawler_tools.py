@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import asyncio
 import json
-import time
 from contextlib import AsyncExitStack
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
@@ -28,17 +26,9 @@ def _policy_url_patterns() -> dict[str, list[str]]:
 POLICY_URL_PATTERNS: dict[str, list[str]] = _policy_url_patterns()
 POLICY_LINK_TEXT_PATTERNS: dict[str, list[str]] = knowledge.policy_link_text_patterns()
 
-_STACK_DB_PATH = Path(__file__).parent.parent / "knowledge" / "tech_stack_signatures.json"
-
-
-def _load_stack_signals() -> dict[str, dict]:
-    with _STACK_DB_PATH.open() as f:
-        return json.load(f)["stacks"]
-
-
-# Single source of truth: detection rules and the Razorpay recommendation for each stack live
-# together in the knowledge base
-TECH_STACK_SIGNALS: dict[str, dict] = _load_stack_signals()
+# Detection rules and the Razorpay recommendation for each stack live together in the knowledge
+# base, loaded through the one loader rather than opened here.
+TECH_STACK_SIGNALS: dict[str, dict] = knowledge.tech_stack_document()["stacks"]
 
 
 def _get_base_domain(url: str) -> str:
@@ -109,7 +99,6 @@ def _detect_tech_stack(html: str, headers: dict[str, str], cookies: list[str]) -
 
 
 async def crawl_website(url: str, max_pages: int = 20, timeout: int = 30) -> dict:
-    start = time.time()
     base_domain = _get_base_domain(url)
     pages_found: dict[str, str] = {}
     http_headers: dict[str, dict] = {}
@@ -210,10 +199,8 @@ async def crawl_website(url: str, max_pages: int = 20, timeout: int = 30) -> dic
         "pages_found": pages_found,
         "scripts_found": unique_scripts,
         "http_headers": http_headers,
-        "navigation_links": sorted(set(all_links))[:100],
         "identified_pages": identified_pages,
         "tech_stack_signals": tech_stack_signals,
         "crawl_errors": crawl_errors,
         "pages_crawled": len(pages_found),
-        "crawl_duration_seconds": round(time.time() - start, 2),
     }

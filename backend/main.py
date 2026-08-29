@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -36,6 +37,14 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
+    # LOG_LEVEL was configurable, documented, and did nothing: basicConfig was never called, so
+    # the root logger stayed unconfigured and routes.py's logger.warning went nowhere.
+    settings = get_settings()
+    logging.basicConfig(
+        level=getattr(logging, settings.log_level.upper(), logging.INFO),
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
     app = FastAPI(
         title="Merchant Compliance Intelligence Engine",
         description="AI-powered merchant pre-qualification for Razorpay onboarding",

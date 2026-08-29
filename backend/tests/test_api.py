@@ -106,6 +106,26 @@ class TestScanLookup:
         assert body["report"]["overall_score"] == 72
         assert body["report"]["grade"] == "C"
 
+    async def test_failed_scan_reason_survives_eviction(self, client):
+        """The reason a scan failed must outlive the in-memory job.
+
+        Failures were never persisted, so an evicted failed scan 404'd and the reason was lost,
+        while ScanResponse.error carried a comment promising it survived a reload.
+        """
+        await routes._persist_run(
+            "job-failed-persisted",
+            routes.MerchantInput(**_MERCHANT),
+            None,
+            status="failed",
+            error="Could not reach http://127.0.0.1:4999, ERR_CONNECTION_REFUSED",
+        )
+        assert "job-failed-persisted" not in routes._jobs
+
+        body = client.get("/api/scan/job-failed-persisted").json()
+        assert body["status"] == "failed"
+        assert body["report"] is None
+        assert "ERR_CONNECTION_REFUSED" in body["error"]
+
 
 class TestJobEviction:
     def test_finished_jobs_are_evicted_but_running_ones_survive(self):
