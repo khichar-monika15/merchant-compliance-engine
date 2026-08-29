@@ -7,6 +7,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -14,14 +15,16 @@ from backend.agents.orchestrator import run_pipeline
 from backend.api.websocket import broadcast_progress, finish_job, register_job
 from backend.config import get_settings
 from backend.models.database import AuditRun, Base
-from backend.models.schemas import MerchantInput, ScanRequest, ScanResponse
+from backend.models.schemas import MerchantInput, ReadinessReport, ScanRequest, ScanResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api")
 
-# In-memory job store (production would use Redis/DB)
+# In-memory job store for live scans; completed runs also persist to SQLite (production
+# would use Redis/DB for both)
 _jobs: dict[str, dict] = {}
+_MAX_IN_MEMORY_JOBS = 100
 
 # Strong references to running scans — the event loop only holds weak ones,
 # so without this a task can be garbage collected mid-scan
@@ -109,6 +112,22 @@ async def _persist_run(job_id: str, merchant_input: MerchantInput, state) -> Non
         logger.warning("Audit trail persistence failed for job %s: %s", job_id, e)
 
 
+def _evict_old_jobs() -> None:
+    """Bound the in-memory store, oldest finished scan first.
+
+    In-flight scans are skipped rather than stopping the sweep, so one long-running job cannot
+    block eviction entirely. Evicted scans are still served from SQLite.
+    """
+    finished = sorted(
+        (j for j, v in _jobs.items() if v["status"] not in ("queued", "running")),
+        key=lambda j: _jobs[j]["created_at"],
+    )
+    for job_id in finished:
+        if len(_jobs) <= _MAX_IN_MEMORY_JOBS:
+            return
+        del _jobs[job_id]
+
+
 @router.get("/health")
 async def health():
     return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
@@ -130,6 +149,7 @@ async def start_scan(request: ScanRequest):
         "created_at": datetime.now(timezone.utc).isoformat(),
         "report": None,
     }
+    _evict_old_jobs()
     register_job(job_id)
     task = asyncio.create_task(_run_scan_job(job_id, merchant_input))
     _running_tasks.add(task)
@@ -137,13 +157,36 @@ async def start_scan(request: ScanRequest):
     return ScanResponse(job_id=job_id, status="queued")
 
 
+async def _load_persisted_report(job_id: str) -> ScanResponse | None:
+    """Serve a completed scan from SQLite when it is no longer in memory.
+
+    Without this, every completed scan 404s after a restart or once evicted, even though the
+    run was persisted.
+    """
+    try:
+        async_session = sessionmaker(_get_engine(), class_=AsyncSession, expire_on_commit=False)
+        async with async_session() as session:
+            row = (await session.execute(
+                select(AuditRun).where(AuditRun.job_id == job_id)
+            )).scalar_one_or_none()
+    except Exception as e:
+        logger.warning("Audit trail lookup failed for job %s: %s", job_id, e)
+        return None
+
+    if row is None:
+        return None
+    report = ReadinessReport.model_validate(json.loads(row.report_json)) if row.report_json else None
+    return ScanResponse(job_id=job_id, status=row.status, report=report)
+
+
 @router.get("/scan/{job_id}", response_model=ScanResponse)
 async def get_scan(job_id: str):
     job = _jobs.get(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
-    return ScanResponse(
-        job_id=job_id,
-        status=job["status"],
-        report=job.get("report"),
-    )
+    if job:
+        return ScanResponse(job_id=job_id, status=job["status"], report=job.get("report"))
+
+    persisted = await _load_persisted_report(job_id)
+    if persisted:
+        return persisted
+
+    raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
