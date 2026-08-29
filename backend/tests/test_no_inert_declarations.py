@@ -9,6 +9,14 @@ one file's key counted as read because another file's identically named key was.
 
 This version walks all four files, classifies every key through `knowledge.KNOWLEDGE_FIELDS`, and
 checks the access happens in the module the registry names.
+
+**What this guard cannot do.** It matches on key name within a module, so two checks in the same
+file declaring the same key name are indistinguishable to it: PCI-001 and PCI-005 both declare
+`requirement`, and PCI-001's read satisfied PCI-005's while PCI-005's four requirements were
+enforced by nothing. Only cross-file collisions are handled. Where a declared value has to change
+behaviour, the guard that proves it is behavioural and lives next to the code, for example
+`TestEveryDeclaredHeaderCostsItsDeclaredPoints` in `test_pci.py`. Do not read a pass here as proof
+that a rule is applied, only that something in the named module reads a key by that name.
 """
 from __future__ import annotations
 

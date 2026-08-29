@@ -103,7 +103,11 @@ async def run(state: EngineState) -> dict:
                 )],
             }
 
-        business_type = compliance.business_category or state.merchant_input.business_type or "ecommerce"
+        # What the merchant declared wins, exactly as it does in the auditor. The detected
+        # category is a keyword heuristic that tests the ecommerce list first with the bare word
+        # "product" in it, so letting it override the declaration handed SaaS merchants an
+        # ecommerce refund policy while they were audited against SaaS topics.
+        business_type = state.merchant_input.business_type or compliance.business_category or "ecommerce"
         company_name = state.merchant_input.gst_legal_name or state.merchant_input.pan_name
         website_url = str(state.merchant_input.website_url)
 

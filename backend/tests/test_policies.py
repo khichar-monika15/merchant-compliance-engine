@@ -38,6 +38,59 @@ def _state(business_type: str = "ecommerce") -> EngineState:
     return state
 
 
+class TestDeclaredBusinessTypeWins:
+    """The merchant's declared type drives drafting, as it already drives the audit.
+
+    `business_category or merchant_input.business_type` let a keyword heuristic win, and that
+    heuristic tests the ecommerce list first with the bare word "product" in it. So a SaaS site
+    was audited against SaaS refund topics and then handed an ecommerce refund policy full of
+    shipping and damaged-goods clauses.
+    """
+
+    @staticmethod
+    def _saas_state_misread_as_ecommerce() -> EngineState:
+        state = EngineState(
+            merchant_input=MerchantInput(
+                website_url="http://app.example.com",
+                pan_name="Example Software Pvt. Ltd.",
+                gst_legal_name="EXAMPLE SOFTWARE PRIVATE LIMITED",
+                bank_account_name="Example Software Private Limited",
+                business_type="saas",
+            )
+        )
+        state.compliance_result = ComplianceResult(
+            refund_policy=ComplianceCheck(name="Refund", check_id="RBI-001", found=False),
+            business_category="ecommerce",
+        )
+        return state
+
+    async def test_saas_merchant_gets_the_saas_refund_template(self, monkeypatch):
+        captured: list[str] = []
+
+        async def capture(ptype, template, company, btype, url):
+            captured.append(btype)
+            return ""
+
+        monkeypatch.setattr(pg, "_generate_with_llm", capture)
+        update = await pg.run(self._saas_state_misread_as_ecommerce())
+
+        assert set(captured) == {"saas"}, (
+            f"the keyword heuristic overrode the declared business type: {captured}"
+        )
+        refund = next(
+            p for p in update["policy_gen_result"].generated_policies
+            if p.policy_type == "refund"
+        )
+        assert "damaged" not in refund.content.lower(), (
+            "a SaaS merchant was handed an ecommerce refund policy"
+        )
+
+    def test_the_heuristic_is_still_the_fallback(self):
+        """When the merchant declares nothing, the detected category is better than a default."""
+        assert pg._select_template("refund", "saas") == "refund_saas.md"
+        assert pg._select_template("refund", "ecommerce") == "refund_ecommerce.md"
+
+
 class TestTemplatePlaceholders:
     def test_every_placeholder_has_a_replacement(self):
         """A template token with no replacement would ship to the merchant as-is."""

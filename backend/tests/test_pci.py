@@ -1,3 +1,5 @@
+import pytest
+
 from backend.agents import kyc_validator, pci_scanner
 from backend.agents.pci_scanner import _score_headers, _score_scripts
 from backend.tools.csp_parser import analyze_security_headers, grade_csp, parse_csp
@@ -119,7 +121,8 @@ class TestPCIScoring:
         headers = {k: v for k, v in _PERFECT_HEADERS.items() if k != "referrer-policy"}
         score, issues = _score_headers(analyze_security_headers(headers))
         assert score == 44
-        assert ("PCI-005", "Referrer-Policy missing") in issues
+        # The message is the analyser's, not a second copy kept in the scorer.
+        assert any(cid == "PCI-005" and msg.startswith("Referrer-Policy missing") for cid, msg in issues)
 
     def test_missing_csp_costs_20(self):
         headers = {k: v for k, v in _PERFECT_HEADERS.items() if k != "content-security-policy"}
@@ -257,3 +260,95 @@ class TestRiskCategoriesAreReachable:
         db = _load_risk_db()
         assert score_script_risk("fonts.googleapis.com", db)["category"] == "fonts"
         assert score_script_risk("googleapis.com", db)["category"] == "google"
+
+
+class TestDeclaredHeaderRequirementsAreApplied:
+    """PCI-005 declares a `requirement` per header. Presence alone used to earn the points.
+
+    The parser computed every one of these shortfalls and the scorer read only `present`, so a
+    site could send `max-age=1` or `Referrer-Policy: unsafe-url` and score as if it were correctly
+    configured. Parsed is not applied.
+    """
+
+    def _present_but_wrong(self, header: str, value: str) -> tuple[int, list]:
+        headers = {**_PERFECT_HEADERS, header: value}
+        return _score_headers(analyze_security_headers(headers))
+
+    def test_hsts_below_the_declared_max_age_loses_its_points(self):
+        score, issues = self._present_but_wrong("strict-transport-security", "max-age=1")
+        assert score == 43, "a one second HSTS max-age scored as a compliant header"
+        assert any(cid == "PCI-005" and "max-age" in msg for cid, msg in issues), issues
+
+    def test_x_frame_options_off_the_declared_values_loses_its_points(self):
+        score, issues = self._present_but_wrong(
+            "x-frame-options", "ALLOW-FROM https://evil.example"
+        )
+        assert score == 44
+        assert any(cid == "PCI-005" and "X-Frame-Options" in msg for cid, msg in issues), issues
+
+    def test_x_content_type_wrong_value_loses_its_points(self):
+        score, issues = self._present_but_wrong("x-content-type-options", "sniff")
+        assert score == 44
+        assert any(cid == "PCI-005" and "X-Content-Type" in msg for cid, msg in issues), issues
+
+    def test_referrer_policy_that_leaks_the_url_loses_its_points(self):
+        score, issues = self._present_but_wrong("referrer-policy", "unsafe-url")
+        assert score == 44
+        assert any(cid == "PCI-005" and "Referrer-Policy" in msg for cid, msg in issues), issues
+
+    def test_a_genuinely_safe_referrer_policy_still_scores(self):
+        """The declared requirement has to accept the values a careful merchant actually sends.
+
+        Artisan Weaves sends `strict-origin-when-cross-origin`, which is stronger than the two
+        values PCI-005 originally named. A requirement too narrow to accept a correct header is
+        the same defect in the other direction.
+        """
+        for safe in ("strict-origin-when-cross-origin", "no-referrer", "same-origin", "origin"):
+            score, issues = self._present_but_wrong("referrer-policy", safe)
+            assert score == 50, f"{safe} was penalised: {issues}"
+
+    def test_every_declared_requirement_is_applied_by_the_scorer(self):
+        """No header may reach the scorer without its declared requirement being enforced."""
+        from backend.agents.pci_scanner import _HEADER_RULES
+
+        declared = {h["name"] for h in pci_scanner._HEADER_SUITE["headers"]}
+        wired = {name for name, _, _ in _HEADER_RULES}
+        assert declared == wired, f"declared but never scored: {sorted(declared - wired)}"
+
+
+@pytest.mark.parametrize(
+    "header",
+    pci_scanner._HEADER_SUITE["headers"],
+    ids=lambda h: h["name"],
+)
+class TestEveryDeclaredHeaderCostsItsDeclaredPoints:
+    """Driven from the checklist, so adding a header there forces it to be scored.
+
+    This is the guard that would have caught the requirement bug. The textual guard in
+    `test_no_inert_declarations.py` cannot: PCI-001 and PCI-005 both declare a key called
+    `requirement` in the same module, so one satisfied the other's read. Asserting on behaviour
+    rather than on the presence of a subscript is the only thing that separates them.
+    """
+
+    @staticmethod
+    def _header_key(name: str) -> str:
+        return name.lower()
+
+    def test_absent_header_costs_exactly_its_declared_points(self, header):
+        headers = {k: v for k, v in _PERFECT_HEADERS.items() if k != self._header_key(header["name"])}
+        score, _ = _score_headers(analyze_security_headers(headers))
+        assert score == 50 - header["points"], (
+            f"{header['name']} is declared as {header['points']} points"
+        )
+
+    def test_a_value_failing_the_requirement_costs_the_same(self, header):
+        # A value chosen to fail whatever the checklist declares for this header.
+        bad = "max-age=1" if "max-age" in header["requirement"] else "definitely-not-a-valid-value"
+        headers = {**_PERFECT_HEADERS, self._header_key(header["name"]): bad}
+        score, issues = _score_headers(analyze_security_headers(headers))
+
+        assert score == 50 - header["points"], (
+            f"{header['name']}: {header['requirement']!r} is declared and was not applied. "
+            f"A header sending {bad!r} scored as if it were compliant."
+        )
+        assert any(header["name"] in msg for _, msg in issues), issues

@@ -112,17 +112,27 @@ def _route_after_crawl(state: dict) -> str:
     return "parallel_analysis"
 
 
+def _route_after_validate(state: dict) -> str:
+    """Stop before crawling when the merchant details are unusable.
+
+    `_validate_input` always computed these errors, but the edge to the crawler was unconditional,
+    so three blank names produced a graded report whose KYC axis scored blank against blank as a
+    clean match.
+    """
+    return "abort" if state.get("current_phase") == "error" else "crawl_website"
+
+
 def _route_after_parallel(state: dict) -> str:
     """Run policy generation if compliance gaps exist."""
     compliance = state.get("compliance_result")
     if compliance is None:
         return "generate_report"
 
-    checks = [
-        compliance.get("refund_policy", {}),
-        compliance.get("privacy_policy", {}),
-        compliance.get("terms_conditions", {}),
-    ]
+    # Every policy the generator can draft belongs here. Shipping was scored and gapped but never
+    # routed, so a merchant whose only gap was shipping paid for it with the template unreachable.
+    # `shipping_policy` is absent entirely when RBI-007 does not apply, which is not a gap.
+    keys = ("refund_policy", "privacy_policy", "terms_conditions", "shipping_policy")
+    checks = [c for c in (compliance.get(k) for k in keys) if c is not None]
     needs_policies = any(not c.get("found") or c.get("quality_score", 0) < 5 for c in checks)
     return "generate_policies" if needs_policies else "generate_report"
 
@@ -198,7 +208,11 @@ def build_workflow(progress_fn=None):
     workflow.add_node("generate_report", _report_node)
 
     workflow.set_entry_point("validate_input")
-    workflow.add_edge("validate_input", "crawl_website")
+    workflow.add_conditional_edges(
+        "validate_input",
+        _route_after_validate,
+        {"crawl_website": "crawl_website", "abort": END},
+    )
 
     workflow.add_conditional_edges(
         "crawl_website",

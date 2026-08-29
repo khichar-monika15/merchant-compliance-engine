@@ -99,6 +99,9 @@ class PCIResult(BaseModel):
     x_content_type: dict = {}
     referrer_policy: dict = {}
     security_score: int = 0
+    # The page whose headers were graded. The scanner picks it deliberately (checkout first, then
+    # homepage), so the report can point every PCI finding at the page it came from.
+    graded_url: str = ""
     issues: list[PCIIssue] = []
     # The message text of `issues`, kept so the report renders a plain list. Derived, not a
     # second source of truth.

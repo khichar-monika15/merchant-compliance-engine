@@ -62,7 +62,7 @@ const FEATURES = [
 const STEPS = [
   { n: '01', title: 'Give it a URL and three names', body: 'The website, plus the business name as it appears on PAN, GST and the bank account.' },
   { n: '02', title: 'Seven agents audit in parallel', body: 'A crawler feeds four analysers running concurrently, then policy drafting and scoring.' },
-  { n: '03', title: 'Read the graded report', body: 'A score out of 100, a grade, and every gap with a specific fix and a source URL.' },
+  { n: '03', title: 'Read the graded report', body: 'A score out of 100, a grade, and every gap with a specific fix. Anything found on the site links to the page it came from.' },
 ]
 
 function Reveal({ children, className }: { children: React.ReactNode; className?: string }) {

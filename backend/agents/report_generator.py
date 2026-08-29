@@ -141,6 +141,8 @@ def _pci_gaps(pci) -> tuple[list[GapItem], list[GapItem]]:
             severity=issue.severity,
             category="pci",
             fix_suggestion=f"See PCI DSS v4.0.1 Requirement {check['requirement']}",
+            # The page the scanner chose to grade. Without it a PCI finding named no location.
+            source_url=pci.graded_url or None,
         )
         (critical if issue.severity == Severity.CRITICAL else warnings).append(gap)
 

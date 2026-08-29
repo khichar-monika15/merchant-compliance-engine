@@ -119,6 +119,129 @@ class TestRouting:
     def test_missing_compliance_result_goes_straight_to_report(self):
         assert _route_after_parallel({"compliance_result": None}) == "generate_report"
 
+    def test_a_thin_shipping_policy_still_routes_to_drafting(self):
+        """RBI-007 is scored and gapped, so it has to be draftable too.
+
+        The router inspected refund, privacy and terms only, so an ecommerce merchant whose sole
+        gap was shipping paid the penalty while `shipping_ecommerce.md` sat unreachable.
+        """
+        compliance = {
+            "refund_policy": {"found": True, "quality_score": 8},
+            "privacy_policy": {"found": True, "quality_score": 8},
+            "terms_conditions": {"found": True, "quality_score": 8},
+            "shipping_policy": {"found": False, "quality_score": 0},
+        }
+        assert _route_after_parallel({"compliance_result": compliance}) == "generate_policies"
+
+    def test_absent_shipping_check_is_not_treated_as_a_gap(self):
+        """A SaaS merchant has no shipping key at all, and must not be sent to drafting for it."""
+        compliance = {
+            "refund_policy": {"found": True, "quality_score": 8},
+            "privacy_policy": {"found": True, "quality_score": 8},
+            "terms_conditions": {"found": True, "quality_score": 8},
+            "shipping_policy": None,
+        }
+        assert _route_after_parallel({"compliance_result": compliance}) == "generate_report"
+
+
+class TestEveryGapCarriesItsSource:
+    """The landing page promises every gap has a source URL. Only compliance gaps had one.
+
+    PCI gaps come from a page the scanner already identified, and KYC gaps come from the merchant's
+    own submission rather than from the site, so each needs its own answer rather than a blank.
+    """
+
+    @staticmethod
+    def _state_with_pci_and_kyc_gaps():
+        from backend.models.schemas import (
+            EngineState, KYCMatch, KYCResult, MerchantInput, PCIIssue, PCIResult, Severity,
+        )
+
+        state = EngineState(merchant_input=MerchantInput(
+            website_url="https://shop.example.com",
+            pan_name="Acme Pvt. Ltd.", gst_legal_name="ACME PRIVATE LIMITED",
+            bank_account_name="Different Name Entirely",
+        ))
+        state.pci_result = PCIResult(
+            security_score=40,
+            graded_url="https://shop.example.com/checkout",
+            issues=[PCIIssue(
+                check_id="PCI-004",
+                message="CSP header missing (PCI 11.6.1)",
+                severity=Severity.CRITICAL,
+            )],
+        )
+        mismatch = KYCMatch(match=False, similarity=0.2)
+        state.kyc_result = KYCResult(
+            pan_gst_match=mismatch, gst_bank_match=mismatch, pan_bank_match=mismatch,
+            overall_consistent=False,
+            common_mismatches=["PAN name and bank account name differ"],
+        )
+        return state
+
+    async def test_pci_gaps_point_at_the_page_that_was_graded(self):
+        from backend.agents import report_generator
+
+        update = await report_generator.run(self._state_with_pci_and_kyc_gaps())
+        report = update["readiness_report"]
+        pci_gaps = [g for g in report.critical_gaps + report.warnings if g.category == "pci"]
+
+        assert pci_gaps, "no PCI gap was produced"
+        for gap in pci_gaps:
+            assert gap.source_url == "https://shop.example.com/checkout", (
+                f"PCI gap carries {gap.source_url!r} while the scanner knew the graded page"
+            )
+
+    async def test_every_gap_from_a_page_carries_that_page(self):
+        """Compliance and PCI gaps come from pages, so both must name one.
+
+        KYC gaps are excluded deliberately: they come from the three names the merchant typed in,
+        not from the website, so there is no page to link. The landing page says so rather than
+        promising a URL that could only ever be invented.
+        """
+        from backend.agents import report_generator
+
+        update = await report_generator.run(self._state_with_pci_and_kyc_gaps())
+        report = update["readiness_report"]
+
+        blank = [
+            (g.category, g.title) for g in report.critical_gaps + report.warnings
+            if g.category != "kyc" and not g.source_url
+        ]
+        assert not blank, f"page-derived gaps with no source URL: {blank}"
+
+
+class TestValidationAborts:
+    """`_validate_input` computed errors that nothing acted on.
+
+    The edge to the crawler was unconditional, so a merchant submitting three blank names got a
+    fully graded report whose KYC axis compared blank to blank and called it a clean match.
+    """
+
+    @staticmethod
+    def _blank_input():
+        from backend.models.schemas import MerchantInput
+
+        return MerchantInput(
+            website_url="https://example.com",
+            pan_name="   ", gst_legal_name="   ", bank_account_name="   ",
+        )
+
+    async def test_blank_names_are_rejected_before_crawling(self):
+        from backend.agents import orchestrator
+
+        state = await orchestrator.run_pipeline(self._blank_input())
+
+        assert state.readiness_report is None, "a merchant with no names was graded"
+        assert state.current_phase == "error"
+        assert len(state.errors) == 3, state.errors
+
+    def test_router_sends_a_failed_validation_to_the_end(self):
+        from backend.agents.orchestrator import _route_after_validate
+
+        assert _route_after_validate({"current_phase": "error"}) == "abort"
+        assert _route_after_validate({"current_phase": "validated"}) == "crawl_website"
+
 
 class TestAgentConventions:
     """Project conventions that were documented but unenforced."""

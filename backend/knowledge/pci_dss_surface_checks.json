@@ -126,7 +126,7 @@
           {
             "name": "Referrer-Policy",
             "points": 6,
-            "requirement": "strict-origin or no-referrer"
+            "requirement": "no-referrer, origin, same-origin, strict-origin, origin-when-cross-origin or strict-origin-when-cross-origin"
           }
         ]
       }

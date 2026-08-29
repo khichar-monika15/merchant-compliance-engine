@@ -14,7 +14,63 @@ _SRI = knowledge.pci_check("PCI-002")["scoring"]
 _CSP = knowledge.pci_check("PCI-004")["scoring"]
 _HEADER_SUITE = knowledge.pci_check("PCI-005")["scoring"]
 
-_HEADER_POINTS = {h["name"]: h["points"] for h in _HEADER_SUITE["headers"]}
+# The analyser's key for each declared header. A header declared without one raises below, so
+# adding a header to the checklist forces it to be wired rather than silently ignored.
+_HEADER_ANALYSIS_KEYS = {
+    "Strict-Transport-Security": "hsts",
+    "X-Frame-Options": "x_frame_options",
+    "X-Content-Type-Options": "x_content_type",
+    "Referrer-Policy": "referrer_policy",
+}
+
+
+def _requirement_test(header_name: str, requirement: str):
+    """Turn a declared requirement into a test returning the shortfall, or None when it is met.
+
+    Strictly parsed, and an unparseable requirement raises at import for the same reason PCI-001's
+    conditions do: presence alone used to earn the points here, so all four of these requirements
+    were published on the checks page as live rules while nothing enforced them.
+    """
+    age = re.fullmatch(r"max-age\s*>=\s*(\d+)", requirement.strip(), re.IGNORECASE)
+    if age:
+        minimum = int(age.group(1))
+
+        def _meets_min_age(value: str) -> str | None:
+            found = re.search(r"max-age\s*=\s*(\d+)", value, re.IGNORECASE)
+            if not found:
+                return "no max-age directive"
+            if int(found.group(1)) < minimum:
+                return f"max-age is {found.group(1)}, below the required {minimum}"
+            return None
+
+        return _meets_min_age
+
+    accepted = {part.strip().lower() for part in re.split(r",|\bor\b", requirement) if part.strip()}
+    if not accepted:
+        raise ValueError(
+            f"PCI-005 declares a requirement this scorer cannot apply for {header_name}: "
+            f"{requirement!r}. Publishing a rule the engine ignores is worse than not "
+            "declaring it."
+        )
+
+    def _is_accepted(value: str) -> str | None:
+        # Directives after a semicolon qualify the value; the value itself is what is graded.
+        actual = value.split(";")[0].strip().lower()
+        if actual in accepted:
+            return None
+        return f"value is {actual!r}, which is not one of: {', '.join(sorted(accepted))}"
+
+    return _is_accepted
+
+
+_HEADER_RULES: list[tuple[str, int, object]] = []
+for _h in _HEADER_SUITE["headers"]:
+    if _h["name"] not in _HEADER_ANALYSIS_KEYS:
+        raise ValueError(
+            f"PCI-005 declares {_h['name']!r}, which no analyser key maps to, so its points "
+            "could never be scored."
+        )
+    _HEADER_RULES.append((_h["name"], _h["points"], _requirement_test(_h["name"], _h["requirement"])))
 
 # PCI-001 deducts by third-party script count; the thresholds live in the condition strings.
 # An unrecognised condition raises rather than being skipped: two SRI deductions were declared
@@ -101,16 +157,20 @@ def _score_headers(security_analysis: dict) -> tuple[int, list[tuple[str, str]]]
         # the value in the checklist changes the score.
         score -= _CSP["strong_csp_deduction"]
 
-    suite = [
-        ("hsts", "Strict-Transport-Security", "HSTS missing, HTTPS not enforced"),
-        ("x_frame_options", "X-Frame-Options", "X-Frame-Options missing, clickjacking risk"),
-        ("x_content_type", "X-Content-Type-Options", "X-Content-Type-Options: nosniff missing"),
-        ("referrer_policy", "Referrer-Policy", "Referrer-Policy missing"),
-    ]
-    for key, header_name, message in suite:
-        if not security_analysis.get(key, {}).get("present"):
-            score -= _HEADER_POINTS[header_name]
-            issues.append(("PCI-005", message))
+    # A header earns its points by being present *and* meeting the requirement PCI-005 declares
+    # for it. The messages come from the analyser rather than a second copy kept here.
+    for header_name, points, meets_requirement in _HEADER_RULES:
+        analysis = security_analysis.get(_HEADER_ANALYSIS_KEYS[header_name], {})
+        if not analysis.get("present"):
+            score -= points
+            reported = analysis.get("issues") or [f"{header_name} missing"]
+            issues.append(("PCI-005", reported[0]))
+            continue
+
+        shortfall = meets_requirement(analysis.get("value", ""))
+        if shortfall:
+            score -= points
+            issues.append(("PCI-005", f"{header_name} is set but {shortfall}"))
 
     return max(0, score), issues
 
@@ -212,6 +272,7 @@ async def run(state: EngineState) -> dict:
             x_content_type=security_analysis.get("x_content_type", {}),
             referrer_policy=security_analysis.get("referrer_policy", {}),
             security_score=total_score,
+            graded_url=graded_url,
             issues=issues,
             critical_issues=[issue.message for issue in issues],
         )
