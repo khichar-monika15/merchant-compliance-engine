@@ -161,6 +161,31 @@ class TestAgentConventions:
         )
 
 
+class TestProgressEvents:
+    async def test_unreachable_site_does_not_report_a_completed_crawl(self):
+        """The crawler must not emit 'crawl complete' for a site it never reached."""
+        from backend.agents import orchestrator
+        from backend.models.schemas import MerchantInput
+
+        events: list[dict] = []
+
+        async def capture(agent, message, pct, event_type="progress", done=False):
+            events.append({"agent": agent, "message": message, "type": event_type, "done": done})
+
+        await orchestrator.run_pipeline(
+            MerchantInput(
+                website_url="http://127.0.0.1:1",
+                pan_name="X", gst_legal_name="X", bank_account_name="X",
+            ),
+            progress_fn=capture,
+        )
+
+        crawler = [e for e in events if e["agent"] == "WebCrawler"]
+        assert crawler, "the crawler emitted nothing"
+        assert not any("complete" in e["message"].lower() for e in crawler), crawler
+        assert any(e["type"] == "error" for e in crawler), crawler
+
+
 class TestPipelineTimeout:
     async def test_timeout_returns_state_with_error_not_exception(self, monkeypatch):
         """A stalled scan must fail the job with a reason, not hang or raise."""

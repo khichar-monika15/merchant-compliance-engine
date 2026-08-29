@@ -146,10 +146,14 @@ export interface ReadinessReport {
 }
 
 // --- API ---
+export type ScanStatus = 'queued' | 'running' | 'completed' | 'failed'
+
 export interface ScanResponse {
   job_id: string
-  status: 'queued' | 'running' | 'completed' | 'failed'
-  report?: ReadinessReport
+  status: ScanStatus
+  report?: ReadinessReport | null
+  /** Why a failed scan failed. Null on every other status. */
+  error?: string | null
 }
 
 export interface ScoreComponent {

@@ -146,13 +146,21 @@ def _serialise(update: dict) -> dict:
 def build_workflow(progress_fn=None):
     """Build and compile the LangGraph StateGraph for the MCIE pipeline."""
 
-    async def _emit(agent: str, message: str, pct: int, done: bool = False) -> None:
+    async def _emit(
+        agent: str, message: str, pct: int, done: bool = False, event_type: str = "progress"
+    ) -> None:
         if progress_fn:
-            await progress_fn(agent, message, pct, done=done)
+            await progress_fn(agent, message, pct, event_type=event_type, done=done)
 
     async def _crawl_node(state: dict) -> dict:
         await _emit("WebCrawler", "Crawling merchant website", 15)
         result = await _crawl(state)
+        # Reporting "crawl complete" for a site that was never reached is the same false
+        # confidence the pipeline used to show by grading it.
+        if result.get("current_phase") == "crawl_failed":
+            reason = (result.get("errors") or ["site unreachable"])[0]
+            await _emit("WebCrawler", reason, -1, done=True, event_type="error")
+            return result
         await _emit("WebCrawler", "Website crawl complete", 30, done=True)
         return result
 
