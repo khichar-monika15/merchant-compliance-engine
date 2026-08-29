@@ -5,6 +5,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from backend.agents._audit import failure
 from backend.models.schemas import AuditLogEntry, EngineState, IntegrationResult
 from backend.tools.razorpay_client import create_order
 
@@ -97,15 +98,4 @@ async def run(state: EngineState) -> dict:
         }
 
     except Exception as e:
-        duration_ms = (datetime.now(timezone.utc) - t0).total_seconds() * 1000
-        log = AuditLogEntry(
-            timestamp=t0.isoformat(),
-            agent="IntegrationAdvisor",
-            action="Integration advisory",
-            result=f"ERROR: {e}",
-            duration_ms=round(duration_ms, 1),
-        )
-        return {
-            "errors": [f"IntegrationAdvisor failed: {e}"],
-            "audit_log": [log],
-        }
+        return failure(t0, "IntegrationAdvisor", "Integration advisory", e)

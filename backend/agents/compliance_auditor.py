@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from backend.tools.llm_client import llm_complete
+from backend.agents._audit import failure
 from backend.models.schemas import (
     AuditLogEntry,
     ComplianceCheck,
@@ -335,18 +336,7 @@ async def run(state: EngineState) -> dict:
         return update
 
     except Exception as e:
-        duration_ms = (datetime.now(timezone.utc) - t0).total_seconds() * 1000
-        log = AuditLogEntry(
-            timestamp=t0.isoformat(),
-            agent="ComplianceAuditor",
-            action="RBI compliance audit",
-            result=f"ERROR: {e}",
-            duration_ms=round(duration_ms, 1),
-        )
-        return {
-            "errors": [f"ComplianceAuditor failed: {e}"],
-            "audit_log": [log],
-        }
+        return failure(t0, "ComplianceAuditor", "RBI compliance audit", e)
 
 
 def _detect_business_category(html: str) -> str:

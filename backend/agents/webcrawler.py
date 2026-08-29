@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from backend.config import get_settings
+from backend.agents._audit import failure
 from backend.models.schemas import AuditLogEntry, CrawlResult, EngineState, ScriptInfo
 from backend.tools.crawler_tools import crawl_website
 
@@ -48,16 +49,4 @@ async def run(state: EngineState) -> dict:
         }
 
     except Exception as e:
-        duration_ms = (datetime.now(timezone.utc) - t0).total_seconds() * 1000
-        log = AuditLogEntry(
-            timestamp=t0.isoformat(),
-            agent="WebCrawler",
-            action=f"Crawled {url}",
-            result=f"ERROR: {e}",
-            duration_ms=round(duration_ms, 1),
-        )
-        return {
-            "current_phase": "crawl_failed",
-            "errors": [f"WebCrawler failed: {e}"],
-            "audit_log": [log],
-        }
+        return {**failure(t0, "WebCrawler", f"Crawled {url}", e), "current_phase": "crawl_failed"}

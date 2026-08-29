@@ -5,6 +5,7 @@ channel: any node returning a partial dict silently replaced the entire state. I
 because every node happened to return the whole state. These tests pin the contract so a future
 agent returning just its own key cannot wipe the report.
 """
+import pytest
 from langgraph.graph import END, StateGraph
 
 from backend.agents.orchestrator import (
@@ -104,6 +105,49 @@ class TestRouting:
 
     def test_missing_compliance_result_goes_straight_to_report(self):
         assert _route_after_parallel({"compliance_result": None}) == "generate_report"
+
+
+class TestAgentConventions:
+    """Project conventions that were documented but unenforced."""
+
+    AGENTS = [
+        "webcrawler", "compliance_auditor", "pci_scanner", "kyc_validator",
+        "policy_generator", "integration_advisor", "report_generator",
+    ]
+
+    @staticmethod
+    def _broken_state():
+        """An EngineState that makes every agent fail, to exercise the error path."""
+        from backend.models.schemas import EngineState, MerchantInput
+
+        state = EngineState(merchant_input=MerchantInput(
+            website_url="https://example.invalid",
+            pan_name="X", gst_legal_name="X", bank_account_name="X",
+        ))
+        state.crawl_result = "not-a-crawl-result"  # type: ignore[assignment]
+        return state
+
+    @pytest.mark.parametrize("module_name", AGENTS)
+    async def test_agent_never_raises_and_always_logs(self, module_name):
+        import importlib
+
+        agent = importlib.import_module(f"backend.agents.{module_name}")
+        update = await agent.run(self._broken_state())
+
+        assert isinstance(update, dict)
+        assert update.get("audit_log"), f"{module_name} returned no audit entry"
+        assert len(update["audit_log"]) == 1, "an agent contributes exactly one entry per run"
+
+    @pytest.mark.parametrize("module_name", AGENTS)
+    async def test_agent_returns_only_declared_state_keys(self, module_name):
+        import importlib
+
+        agent = importlib.import_module(f"backend.agents.{module_name}")
+        update = await agent.run(self._broken_state())
+        assert set(update) <= set(GraphState.__annotations__), (
+            f"{module_name} writes keys the graph has no channel for: "
+            f"{set(update) - set(GraphState.__annotations__)}"
+        )
 
 
 class TestPipelineTimeout:

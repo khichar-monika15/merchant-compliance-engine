@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from backend.models.schemas import AuditLogEntry, EngineState, KYCMatch, KYCResult
+from backend.agents._audit import audit_entry, failure
+from backend.models.schemas import EngineState, KYCMatch, KYCResult
 from backend.tools.name_matcher import validate_kyc_consistency
 
 
@@ -27,30 +28,10 @@ async def run(state: EngineState) -> dict:
         )
 
         summary = "PASS" if kyc_result.overall_consistent else f"FAIL — {len(kyc_result.common_mismatches)} mismatches"
-        duration_ms = (datetime.now(timezone.utc) - t0).total_seconds() * 1000
-        log = AuditLogEntry(
-            timestamp=t0.isoformat(),
-            agent="KYCValidator",
-            action=f"Validated KYC names for '{inp.pan_name}'",
-            result=summary,
-            duration_ms=round(duration_ms, 1),
-        )
-
         return {
             "kyc_result": kyc_result,
-            "audit_log": [log],
+            "audit_log": [audit_entry(t0, "KYCValidator", f"Validated KYC names for '{inp.pan_name}'", summary)],
         }
 
     except Exception as e:
-        duration_ms = (datetime.now(timezone.utc) - t0).total_seconds() * 1000
-        log = AuditLogEntry(
-            timestamp=t0.isoformat(),
-            agent="KYCValidator",
-            action="KYC validation",
-            result=f"ERROR: {e}",
-            duration_ms=round(duration_ms, 1),
-        )
-        return {
-            "errors": [f"KYCValidator failed: {e}"],
-            "audit_log": [log],
-        }
+        return failure(t0, "KYCValidator", "KYC validation", e)

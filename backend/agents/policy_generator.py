@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from backend.tools.llm_client import llm_complete
+from backend.agents._audit import audit_entry, failure
 from backend.models.schemas import (
     AuditLogEntry,
     EngineState,
@@ -71,7 +72,13 @@ async def run(state: EngineState) -> dict:
     try:
         compliance = state.compliance_result
         if compliance is None:
-            return {"policy_gen_result": PolicyGenResult()}
+            return {
+                "policy_gen_result": PolicyGenResult(),
+                "audit_log": [audit_entry(
+                    t0, "PolicyGenerator", "Policy generation check",
+                    "Skipped — no compliance result to work from",
+                )],
+            }
 
         # Determine which policies are needed
         needed: list[str] = []
@@ -87,11 +94,8 @@ async def run(state: EngineState) -> dict:
         if not needed:
             return {
                 "policy_gen_result": PolicyGenResult(policies_needed=[]),
-                "audit_log": [AuditLogEntry(
-                    timestamp=t0.isoformat(),
-                    agent="PolicyGenerator",
-                    action="Policy generation check",
-                    result="No policies need generation",
+                "audit_log": [audit_entry(
+                    t0, "PolicyGenerator", "Policy generation check", "No policies need generation",
                 )],
             }
 
@@ -153,15 +157,4 @@ async def run(state: EngineState) -> dict:
         }
 
     except Exception as e:
-        duration_ms = (datetime.now(timezone.utc) - t0).total_seconds() * 1000
-        log = AuditLogEntry(
-            timestamp=t0.isoformat(),
-            agent="PolicyGenerator",
-            action="Policy generation",
-            result=f"ERROR: {e}",
-            duration_ms=round(duration_ms, 1),
-        )
-        return {
-            "errors": [f"PolicyGenerator failed: {e}"],
-            "audit_log": [log],
-        }
+        return failure(t0, "PolicyGenerator", "Policy generation", e)

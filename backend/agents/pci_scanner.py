@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
+from backend.agents._audit import failure
 from backend.models.schemas import AuditLogEntry, EngineState, PCIResult
 from backend.tools.csp_parser import analyze_security_headers
 
@@ -168,15 +169,4 @@ async def run(state: EngineState) -> dict:
         }
 
     except Exception as e:
-        duration_ms = (datetime.now(timezone.utc) - t0).total_seconds() * 1000
-        log = AuditLogEntry(
-            timestamp=t0.isoformat(),
-            agent="PCIScanner",
-            action="PCI DSS scan",
-            result=f"ERROR: {e}",
-            duration_ms=round(duration_ms, 1),
-        )
-        return {
-            "errors": [f"PCIScanner failed: {e}"],
-            "audit_log": [log],
-        }
+        return failure(t0, "PCIScanner", "PCI DSS scan", e)
