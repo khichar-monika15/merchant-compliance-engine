@@ -18,7 +18,7 @@ uv sync
 uv run playwright install chromium
 
 cp .env.example .env      # see Configuration below
-uv run pytest backend/tests/            # 458 tests, no credentials needed
+uv run pytest backend/tests/            # 460 tests, no credentials needed
 uv run uvicorn backend.main:app --reload --port 8000
 cd frontend && npm install && npm run dev   # http://localhost:5173
 ```
@@ -93,10 +93,10 @@ are what the engine actually produces when the sites are served locally.
 
 | Site | Port | Stack | Score | Grade | Planted gaps |
 |---|---|---|---|---|---|
-| FreshKart India | 4001 | static HTML | 19 | F | No policy pages, 18 third-party scripts (15 counted without SRI, two Razorpay scripts are exempt), GSTIN only in an HTML comment, KYC mismatches |
-| QuickBites Delivery | 4002 | Nuxt | 28 | D | Thin boilerplate privacy policy, no refund or T&C, US registered office and no Indian address, no GSTIN, KYC mismatches |
-| CloudDesk SaaS | 4003 | Next.js | 55 | C | Refund and privacy pages are 40-60 word stubs, no T&C, no GSTIN |
-| Artisan Weaves | 4004 | Shopify | 81 | B | Nearly compliant — policies substantive but not exhaustive, GSTIN shown, KYC clean; missing a CSP header |
+| FreshKart India | 4001 | static HTML | 19 | F | No policy pages, 18 third-party scripts of which 15 count against SRI (two Razorpay scripts are exempt and one reCAPTCHA script carries a real integrity hash), GSTIN only in an HTML comment, KYC mismatches |
+| QuickBites Delivery | 4002 | Nuxt | 26 | D | Thin boilerplate privacy policy, no refund or T&C, US registered office and no Indian address, no GSTIN, KYC mismatches |
+| CloudDesk SaaS | 4003 | Next.js | 56 | C | Refund and privacy pages are 40-60 word stubs, no T&C, no GSTIN |
+| Artisan Weaves | 4004 | Shopify | 86 | B | Nearly compliant — policies substantive but not exhaustive, GSTIN shown, KYC clean; missing a CSP header |
 
 Each site carries a different stack signature, so the integration advisor is exercised across
 three of its nine stack profiles: Shopify gets the Payment Button, static HTML gets Payment Links,
@@ -113,19 +113,18 @@ here because the credential available to me has expired and I have not re-measur
 Serve them and run the full comparison against ground truth:
 
 ```bash
-npx serve test-sites/freshkart-india      -p 4001
-npx serve test-sites/quickbites-delivery  -p 4002
-npx serve test-sites/clouddesk-saas       -p 4003
-npx serve test-sites/artisan-weaves       -p 4004
+uv run python test-sites/serve.py     # all four, on 4001-4004
 
 uv run python -m backend.tests.validate_ground_truth
 ```
 
 Artisan's `vercel.json` sets four security headers and CloudDesk's sets one; FreshKart and
-QuickBites declare a header rule with nothing in it, which is the planted fault. A static local
-server does not apply any of them either way, so served locally every site reports its headers as
-missing and the ground-truth files encode the local-serving values. Deploy to Vercel to see the
-header differences.
+QuickBites declare a header rule with nothing in it, which is the planted fault. `serve.py` reads
+each site's `vercel.json` and actually sends those headers, so the header checks grade the site
+rather than the serving method. Under `npx serve`, which ignores `vercel.json`, all four reported
+every header missing, PCI-004 and PCI-005 could not tell them apart, and 25 of the 100 PCI points
+were decided by how the site was served. That is why Artisan scores 86 rather than 81 and
+CloudDesk 56 rather than 55.
 
 ## Tech stack
 

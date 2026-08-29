@@ -50,12 +50,11 @@ jobs:
       - name: Install Playwright browser
         run: uv run playwright install --with-deps chromium
 
+      # serve.py applies each site's declared vercel.json headers. npx serve ignores them, which
+      # made every site report its headers missing and PCI-004/005 stop discriminating.
       - name: Serve the four test sites
         run: |
-          npx --yes serve test-sites/freshkart-india      -p 4001 &
-          npx --yes serve test-sites/quickbites-delivery  -p 4002 &
-          npx --yes serve test-sites/clouddesk-saas       -p 4003 &
-          npx --yes serve test-sites/artisan-weaves       -p 4004 &
+          uv run python test-sites/serve.py &
           for port in 4001 4002 4003 4004; do
             for _ in $(seq 1 30); do
               curl -sf "http://127.0.0.1:$port/" >/dev/null && break

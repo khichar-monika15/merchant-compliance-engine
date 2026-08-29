@@ -151,9 +151,10 @@ KNOWLEDGE_FIELDS: dict[str, dict[str, tuple[str, str]]] = {
         "meta": applied("backend.tools.crawler_tools"),
         "content_prefix": applied("backend.tools.crawler_tools"),
         "headers": applied("backend.tools.crawler_tools"),
+        # Only genuine stack fingerprints belong here. Django used to be detected by
+        # x-frame-options and x-content-type-options, which any site may send, so it matched
+        # CloudDesk the moment the test sites were served with their real headers.
         "x-powered-by": dynamic("headers"),
-        "x-frame-options": dynamic("headers"),
-        "x-content-type-options": dynamic("headers"),
         "cookies": applied("backend.tools.crawler_tools"),
         "razorpay_recommendation": applied("backend.agents.integration_advisor"),
         "product": applied("backend.agents.integration_advisor"),

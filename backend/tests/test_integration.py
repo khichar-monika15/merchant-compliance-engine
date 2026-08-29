@@ -10,6 +10,33 @@ from backend.agents.report_generator import (
 from backend.models.schemas import IntegrationResult, KYCMatch, KYCResult
 
 
+class TestNoStackIsIdentifiedByAGenericHeader:
+    """One matching signal is enough to detect a stack, so a signal has to be a real fingerprint.
+
+    Django declared `x-frame-options: SAMEORIGIN` and `x-content-type-options: nosniff`. Those are
+    security headers any careful site sends. The rule never fired only because the test sites were
+    served by something that dropped their declared headers; the moment they were served properly,
+    CloudDesk was detected as both Next.js and Django.
+    """
+
+    # Headers that say something about the stack, rather than about the site's security posture.
+    FINGERPRINT_HEADERS = {"x-powered-by", "x-generator", "x-shopify-stage", "x-drupal-cache"}
+
+    def test_every_declared_header_signal_is_a_fingerprint(self):
+        from backend import knowledge
+
+        generic = []
+        for stack, config in knowledge.tech_stack_document()["stacks"].items():
+            for header in config.get("detection", {}).get("headers", {}):
+                if header.lower() not in self.FINGERPRINT_HEADERS:
+                    generic.append(f"{stack} -> {header}")
+
+        assert not generic, (
+            "these stacks are detected by a header any site may send, so any site that sets it "
+            f"is misdetected: {generic}"
+        )
+
+
 class TestPrimaryStackSelection:
     def test_shopify_wins_over_react(self):
         signals = {"shopify": ["cdn.shopify.com"], "react": ["ReactDOM"]}

@@ -35,6 +35,36 @@ def clean_jobs():
     routes._jobs.clear()
 
 
+@pytest.fixture(autouse=True)
+def isolated_database(tmp_path, monkeypatch):
+    """Every test gets its own database file.
+
+    These tests used to write to the developer's live ./mcie.db through the cached module-level
+    engine. `AuditRun.job_id` is UNIQUE and `_persist_run` swallows the IntegrityError, so from
+    the second run onwards they asserted against the row the first run had left: changing the
+    fixture's score below and re-running still passed.
+    """
+    from backend.config import get_settings
+
+    monkeypatch.setenv("DATABASE_URL", f"sqlite+aiosqlite:///{tmp_path / 'test.db'}")
+    get_settings.cache_clear()
+    monkeypatch.setattr(routes, "_engine", None)
+
+    yield
+
+    routes._engine = None
+    get_settings.cache_clear()
+
+
+class TestTheSuiteNeverTouchesTheRealDatabase:
+    def test_persistence_is_pointed_at_a_temp_file(self):
+        from backend.config import get_settings
+
+        assert "mcie.db" not in get_settings().database_url, (
+            "the API tests are writing to the repository's own database"
+        )
+
+
 class TestHealth:
     def test_health_ok(self, client):
         r = client.get("/api/health")

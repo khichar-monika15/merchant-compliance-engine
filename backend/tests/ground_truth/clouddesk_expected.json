@@ -11,6 +11,7 @@
     50,
     62
   ],
+  "measured_score_rule_path": 56,
   "expected_grade": "C",
   "expected_stack": "nextjs",
   "compliance_expected": {
@@ -45,7 +46,11 @@
     "scripts_without_sri_max": 3,
     "csp_present": false,
     "hsts_present": false,
-    "referrer_policy_present": false
+    "referrer_policy_present": false,
+    "security_score_min": 52,
+    "security_score_max": 52,
+    "x_frame_options_present": true,
+    "x_content_type_present": false
   },
   "kyc_expected": {
     "overall_consistent": true,

@@ -130,14 +130,26 @@ class TestDemoSitesMatchGroundTruth:
             assert site["bank_account_name"] == gt["kyc_input"]["bank_name"], key
 
     def test_advertised_score_and_grade_match(self, demo_sites, fixtures):
+        """The button must advertise the score the engine produces, not merely a plausible one.
+
+        This asserted only that the advertised number fell inside `expected_score_range`, a band
+        up to 15 points wide. QuickBites went on advertising 28 after RBI-007 moved it to 26, and
+        the guard stayed green because 28 is inside 25 to 40.
+        """
         for key, site in demo_sites.items():
             gt = fixtures[key]
-            low, high = gt["expected_score_range"]
-            assert low <= int(site["expected"]) <= high, (
-                f"{key}: the button advertises {site['expected']}, outside the ground truth "
-                f"range {low} to {high}"
+            assert int(site["expected"]) == gt["measured_score_rule_path"], (
+                f"{key}: the button advertises {site['expected']}, the engine produces "
+                f"{gt['measured_score_rule_path']} on the rule path"
             )
             assert site["grade"] == gt["expected_grade"], key
+
+    def test_the_exact_score_is_inside_the_harness_band(self, fixtures):
+        """The band exists to tolerate the LLM path; it still has to contain the rule-path value."""
+        for key, gt in fixtures.items():
+            low, high = gt["expected_score_range"]
+            exact = gt["measured_score_rule_path"]
+            assert low <= exact <= high, f"{key}: measured {exact} is outside its own band {low}-{high}"
 
 
 class TestChecksPageDoesNotRestateTheScoring:

@@ -119,11 +119,7 @@
           "csrfmiddlewaretoken",
           "django",
           "__all__"
-        ],
-        "headers": {
-          "x-frame-options": "SAMEORIGIN",
-          "x-content-type-options": "nosniff"
-        }
+        ]
       },
       "razorpay_recommendation": {
         "product": "Razorpay Standard Checkout",

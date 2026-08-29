@@ -66,7 +66,7 @@ def _check(label: str, condition: bool, actual, expected) -> bool:
     return condition
 
 
-async def validate_one(name: str, gt_file: str) -> bool:
+async def validate_one(name: str, gt_file: str, rule_path: bool = False) -> bool:
     print(f"\n{'='*60}")
     print(f"Testing: {name}")
     print(f"{'='*60}")
@@ -84,11 +84,21 @@ async def validate_one(name: str, gt_file: str) -> bool:
     passed = 0
     total = 0
 
-    # Score range
+    # Score range. The band is wide enough to hold either scoring path, so on the rule path,
+    # which is deterministic, the exact value is asserted instead. A band 15 points wide cannot
+    # notice a two point drift, and that is exactly how a stale demo score survived.
     lo, hi = gt["expected_score_range"]
     ok = lo <= report.overall_score <= hi
     total += 1
     passed += int(_check("Score in range", ok, report.overall_score, f"{lo}-{hi}"))
+
+    if rule_path and "measured_score_rule_path" in gt:
+        exact = gt["measured_score_rule_path"]
+        total += 1
+        passed += int(_check(
+            "Score exactly matches the recorded rule-path value",
+            report.overall_score == exact, report.overall_score, exact,
+        ))
 
     # Grade
     total += 1
@@ -164,6 +174,9 @@ async def validate_one(name: str, gt_file: str) -> bool:
             "total_scripts": pci.total_scripts,
             "third_party_scripts": pci.third_party_scripts,
             "scripts_without_sri": pci.scripts_without_sri,
+            # Pinned so a change to header scoring shows up here rather than only in the total,
+            # where a 20% weight can hide it.
+            "security_score": pci.security_score,
         }
         for name, actual in counts.items():
             if f"{name}_max" in pci_exp:
@@ -175,10 +188,14 @@ async def validate_one(name: str, gt_file: str) -> bool:
                 bound = pci_exp[f"{name}_min"]
                 passed += int(_check(f"{name}_min", actual >= bound, actual, f">= {bound}"))
 
+        # All four headers PCI-005 scores, not three. These are what separates the sites now that
+        # they are served with the headers their vercel.json declares.
         presence = {
             "csp_present": pci.csp_header.get("present", False),
             "hsts_present": pci.hsts_header.get("present", False),
             "referrer_policy_present": pci.referrer_policy.get("present", False),
+            "x_frame_options_present": pci.x_frame_options.get("present", False),
+            "x_content_type_present": pci.x_content_type.get("present", False),
         }
         for key, actual in presence.items():
             if key in pci_exp:
@@ -233,9 +250,12 @@ async def main() -> bool:
     path = await _active_path()
     print(f"Scoring path: {path}")
 
+    # The recorded exact scores are rule-path values, so they are only asserted on that path.
+    rule_path = path.startswith("rule-only")
+
     results = []
     for name, gt_file in TEST_CASES:
-        ok = await validate_one(name, gt_file)
+        ok = await validate_one(name, gt_file, rule_path=rule_path)
         results.append((name, ok))
 
     print(f"\n{'='*60}")

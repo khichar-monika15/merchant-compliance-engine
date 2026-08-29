@@ -11,6 +11,7 @@
     14,
     24
   ],
+  "measured_score_rule_path": 19,
   "expected_grade": "F",
   "expected_stack": "static_html",
   "compliance_expected": {
@@ -44,7 +45,11 @@
     "scripts_without_sri_max": 15,
     "csp_present": false,
     "hsts_present": false,
-    "referrer_policy_present": false
+    "referrer_policy_present": false,
+    "security_score_min": 20,
+    "security_score_max": 20,
+    "x_frame_options_present": false,
+    "x_content_type_present": false
   },
   "kyc_expected": {
     "overall_consistent": false,

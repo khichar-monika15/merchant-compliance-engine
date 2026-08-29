@@ -42,16 +42,17 @@ uv run python -m backend.tests.validate_ground_truth
 Serve on these ports — `validate_ground_truth.py` and the docs all assume them.
 
 - `test-sites/freshkart-india/` — port 4001 — 19 / Grade F — static HTML (every major gap planted)
-- `test-sites/quickbites-delivery/` — port 4002 — 28 / Grade D — Nuxt (KYC mismatches, thin policy)
-- `test-sites/clouddesk-saas/` — port 4003 — 55 / Grade C — Next.js (thin policies)
-- `test-sites/artisan-weaves/` — port 4004 — 81 / Grade B — Shopify (nearly ready)
+- `test-sites/quickbites-delivery/` — port 4002 — 26 / Grade D — Nuxt (KYC mismatches, thin policy)
+- `test-sites/clouddesk-saas/` — port 4003 — 56 / Grade C — Next.js (thin policies)
+- `test-sites/artisan-weaves/` — port 4004 — 86 / Grade B — Shopify (nearly ready)
 
 Each site carries a distinct stack signature, so the integration advisor is exercised across
 three different Razorpay products: Payment Button (Shopify), Payment Links (static HTML), and
 Standard Checkout (Next.js and Nuxt, with different starter code each).
 
-Served locally the `vercel.json` security headers do not apply, so all four report their headers
-as missing. Ground truth encodes the local-serving values.
+Serve them with `uv run python test-sites/serve.py`, which reads each site's `vercel.json` and
+sends the headers it declares. Do not use `npx serve`: it ignores `vercel.json`, so every site
+reports every header missing and PCI-004 and PCI-005 stop discriminating.
 
 ## Environment
 

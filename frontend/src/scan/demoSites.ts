@@ -29,7 +29,7 @@ export const DEMO_SITES: DemoSite[] = [
   {
     key: 'quickbites',
     label: 'QuickBites Delivery',
-    expected: '28',
+    expected: '26',
     grade: 'D',
     merchant: {
       website_url: 'http://127.0.0.1:4002',
@@ -42,7 +42,7 @@ export const DEMO_SITES: DemoSite[] = [
   {
     key: 'clouddesk',
     label: 'CloudDesk SaaS',
-    expected: '55',
+    expected: '56',
     grade: 'C',
     merchant: {
       website_url: 'http://127.0.0.1:4003',
@@ -55,7 +55,7 @@ export const DEMO_SITES: DemoSite[] = [
   {
     key: 'artisan',
     label: 'Artisan Weaves',
-    expected: '81',
+    expected: '86',
     grade: 'B',
     merchant: {
       website_url: 'http://127.0.0.1:4004',

@@ -10,19 +10,22 @@ produces when the sites are served locally.
 
 | Site | Port | Stack | Score | Grade | Key violations |
 |------|------|-------|-------|-------|----------------|
-| `freshkart-india/` | 4001 | static HTML | 19 | F | No policy pages, 18 third-party scripts (15 without SRI, two Razorpay scripts are exempt), no security headers, GSTIN only in an HTML comment, KYC mismatch |
-| `quickbites-delivery/` | 4002 | Nuxt | 28 | D | KYC name mismatch, no refund or T&C, thin boilerplate privacy policy, US-only address, no GSTIN |
-| `clouddesk-saas/` | 4003 | Next.js | 55 | C | Refund and privacy pages are 40-60 word stubs, missing T&C and GSTIN |
-| `artisan-weaves/` | 4004 | Shopify | 81 | B | Nearly compliant — policies substantive but not exhaustive, GSTIN shown, KYC clean; missing a CSP header |
+| `freshkart-india/` | 4001 | static HTML | 19 | F | No policy pages, 18 third-party scripts of which 15 count against SRI (two Razorpay scripts are exempt, one reCAPTCHA script carries a real integrity hash), no security headers, GSTIN only in an HTML comment, KYC mismatch |
+| `quickbites-delivery/` | 4002 | Nuxt | 26 | D | KYC name mismatch, no refund or T&C, thin boilerplate privacy policy, US-only address, no GSTIN |
+| `clouddesk-saas/` | 4003 | Next.js | 56 | C | Refund and privacy pages are 40-60 word stubs, missing T&C and GSTIN |
+| `artisan-weaves/` | 4004 | Shopify | 86 | B | Nearly compliant — policies substantive but not exhaustive, GSTIN shown, KYC clean; missing a CSP header |
 
 ## Serve locally
 
 ```bash
-npx serve test-sites/freshkart-india      -p 4001
-npx serve test-sites/quickbites-delivery  -p 4002
-npx serve test-sites/clouddesk-saas       -p 4003
-npx serve test-sites/artisan-weaves       -p 4004
+uv run python test-sites/serve.py                  # all four, on 4001-4004
+uv run python test-sites/serve.py artisan-weaves   # or just one
 ```
+
+`serve.py` reads each site's `vercel.json` and sends the headers it declares, so the PCI header
+checks grade the site instead of the serving method. `npx serve` ignores `vercel.json`: under it
+all four sites report every security header as missing, and the scores in the table above do not
+reproduce.
 
 ## Ground-truth validation
 
