@@ -75,9 +75,20 @@ class TestStateChannels:
 
 
 class TestRouting:
-    def test_skips_analysis_only_when_crawl_returned_nothing(self):
-        assert _route_after_crawl({"current_phase": "crawl_failed", "crawl_result": None}) == "generate_report"
-        assert _route_after_crawl({"current_phase": "error", "crawl_result": {"pages_found": {}}}) == "generate_report"
+    def test_unreachable_site_produces_no_report(self):
+        """A site we never reached must fail the scan, not get graded.
+
+        The crawler swallows ERR_CONNECTION_REFUSED and returns an empty-but-successful result,
+        so a typo'd URL used to score a confident Grade D — including PCI points for headers
+        that were never fetched.
+        """
+        assert _route_after_crawl({"current_phase": "crawl_failed", "crawl_result": None}) == "abort"
+        assert _route_after_crawl({"current_phase": "error", "crawl_result": {"pages_found": {}}}) == "abort"
+
+    def test_crawl_that_retrieved_nothing_is_a_failure(self):
+        """Zero pages retrieved is a failed crawl even when no exception was raised."""
+        state = {"current_phase": "crawled", "crawl_result": {"pages_found": {}, "pages_crawled": 0}}
+        assert _route_after_crawl(state) == "abort"
 
     def test_partial_crawl_still_analysed(self):
         state = {"current_phase": "crawl_failed", "crawl_result": {"pages_found": {"u": "<html>"}}}

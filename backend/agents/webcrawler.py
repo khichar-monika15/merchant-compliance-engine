@@ -33,6 +33,24 @@ async def run(state: EngineState) -> dict:
         )
 
         duration_ms = (datetime.now(timezone.utc) - t0).total_seconds() * 1000
+
+        # Playwright surfaces a refused connection or DNS failure in crawl_errors instead of
+        # raising, so an unreachable site reaches this point looking like a clean crawl.
+        if not crawl_result.pages_found:
+            reason = crawl_result.crawl_errors[0] if crawl_result.crawl_errors else "no pages retrieved"
+            return {
+                "crawl_result": crawl_result,
+                "current_phase": "crawl_failed",
+                "errors": [f"Could not reach {url} — {reason.splitlines()[0]}"],
+                "audit_log": [AuditLogEntry(
+                    timestamp=t0.isoformat(),
+                    agent="WebCrawler",
+                    action=f"Crawled {url}",
+                    result=f"ERROR: site unreachable — {reason.splitlines()[0]}",
+                    duration_ms=round(duration_ms, 1),
+                )],
+            }
+
         log = AuditLogEntry(
             timestamp=t0.isoformat(),
             agent="WebCrawler",

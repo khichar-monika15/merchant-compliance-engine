@@ -99,11 +99,16 @@ async def _generate_report(state: dict) -> dict:
 
 
 def _route_after_crawl(state: dict) -> str:
-    """Skip parallel analysis only when crawl failed entirely (no pages retrieved)."""
+    """Abort when the crawl retrieved nothing; a site we never reached cannot be graded.
+
+    Playwright reports a refused connection through `crawl_errors` rather than by raising, so a
+    total failure still arrives here looking like a successful crawl with an empty page set.
+    Grading it produced a confident report for a site that does not exist.
+    """
     crawl = state.get("crawl_result")
     crawl_pages = (crawl or {}).get("pages_found", {}) if isinstance(crawl, dict) else {}
-    if state.get("current_phase") in ("error", "crawl_failed") and not crawl_pages:
-        return "generate_report"
+    if not crawl_pages:
+        return "abort"
     return "parallel_analysis"
 
 
@@ -190,7 +195,7 @@ def build_workflow(progress_fn=None):
     workflow.add_conditional_edges(
         "crawl_website",
         _route_after_crawl,
-        {"parallel_analysis": "parallel_analysis", "generate_report": "generate_report"},
+        {"parallel_analysis": "parallel_analysis", "abort": END},
     )
 
     workflow.add_conditional_edges(
