@@ -163,7 +163,14 @@ class TestAgentConventions:
 
 class TestProgressEvents:
     async def test_unreachable_site_does_not_report_a_completed_crawl(self):
-        """The crawler must not emit 'crawl complete' for a site it never reached."""
+        """The crawler must not emit 'crawl complete' for a site it never reached.
+
+        Port 4999 is closed but ordinary. Port 1 is on Chromium's own blocked-port list, so
+        navigating to it returns ERR_UNSAFE_PORT without ever attempting a connection, and the
+        test passed without exercising the refusal path it names. Asserting on
+        ERR_CONNECTION_REFUSED pins the real path: a missing browser or a blocked port produces a
+        different message and fails here rather than passing for the wrong reason.
+        """
         from backend.agents import orchestrator
         from backend.models.schemas import MerchantInput
 
@@ -174,7 +181,7 @@ class TestProgressEvents:
 
         await orchestrator.run_pipeline(
             MerchantInput(
-                website_url="http://127.0.0.1:1",
+                website_url="http://127.0.0.1:4999",
                 pan_name="X", gst_legal_name="X", bank_account_name="X",
             ),
             progress_fn=capture,
@@ -184,6 +191,10 @@ class TestProgressEvents:
         assert crawler, "the crawler emitted nothing"
         assert not any("complete" in e["message"].lower() for e in crawler), crawler
         assert any(e["type"] == "error" for e in crawler), crawler
+        assert any("ERR_CONNECTION_REFUSED" in e["message"] for e in crawler), (
+            "the crawl did not actually reach the network. A browser that never launched fails "
+            f"here instead of passing as an unreachable site: {crawler}"
+        )
 
 
 class TestPipelineTimeout:

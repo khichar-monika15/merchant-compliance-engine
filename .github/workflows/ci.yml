@@ -18,6 +18,12 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
+      # Without a real browser the crawler raises on launch, the agent catches it into
+      # crawl_failed, and every crawl test passes on the exception path instead of the one it
+      # names. The suite ran in under six seconds because nothing ever loaded a page.
+      - name: Install Playwright browser
+        run: uv run playwright install --with-deps chromium
+
       # No credentials are configured here on purpose: the suite must pass on a
       # clean clone, and the live LLM smoke test skips itself when unconfigured.
       - name: Run tests
