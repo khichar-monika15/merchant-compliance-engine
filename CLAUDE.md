@@ -46,8 +46,9 @@ Serve on these ports — `validate_ground_truth.py` and the docs all assume them
 - `test-sites/clouddesk-saas/` — port 4003 — 55 / Grade C — Next.js (thin policies)
 - `test-sites/artisan-weaves/` — port 4004 — 81 / Grade B — Shopify (nearly ready)
 
-Each site carries a distinct stack signature so the integration advisor is exercised across four
-different Razorpay recommendations rather than returning the same one four times.
+Each site carries a distinct stack signature, so the integration advisor is exercised across
+three different Razorpay products: Payment Button (Shopify), Payment Links (static HTML), and
+Standard Checkout (Next.js and Nuxt, with different starter code each).
 
 Served locally the `vercel.json` security headers do not apply, so all four report their headers
 as missing. Ground truth encodes the local-serving values.
@@ -55,7 +56,7 @@ as missing. Ground truth encodes the local-serving values.
 ## Environment
 
 - Python 3.12 (uv-managed)
-- Node 24+
+- Node 22 (the version CI pins)
 - `.env` is optional. Without it the engine still runs: policy quality falls back to rule-based
   scoring and the report records that the LLM was unavailable.
   - `OPENAI_API_KEY` + `OPENAI_BASE_URL` (Bedrock mantle, default) + `LLM_MODEL=qwen.qwen3-32b`

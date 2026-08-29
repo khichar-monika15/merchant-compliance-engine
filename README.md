@@ -18,7 +18,7 @@ uv sync
 uv run playwright install chromium
 
 cp .env.example .env      # see Configuration below
-uv run pytest backend/tests/            # 177 tests, no credentials needed
+uv run pytest backend/tests/            # 363 tests, no credentials needed
 uv run uvicorn backend.main:app --reload --port 8000
 cd frontend && npm install && npm run dev   # http://localhost:5173
 ```
@@ -67,9 +67,9 @@ audit log without blocking the others.
 
 | Axis | Weight | Source |
 |---|---|---|
-| RBI compliance | 40% | 5 checks from `backend/knowledge/rbi_mdd_checklist.json` |
+| RBI compliance | 40% | 5 of the 6 checks in `backend/knowledge/rbi_mdd_checklist.json` (RBI-006 is scored under KYC) |
 | KYC consistency | 25% | How many of the 3 document pairs agree |
-| PCI DSS surface | 20% | 4 checks from `backend/knowledge/pci_dss_surface_checks.json` |
+| PCI DSS surface | 20% | 4 of the 5 checks in `backend/knowledge/pci_dss_surface_checks.json` (PCI-003 classifies scripts and carries no deduction) |
 | Integration readiness | 15% | Stack detected + starter code, with a live test order as a bonus |
 
 Grades: A ≥ 90, B ≥ 75, C ≥ 50, D ≥ 25, F below that.
@@ -79,6 +79,7 @@ Grades: A ≥ 90, B ≥ 75, C ≥ 50, D ≥ 25, F below that.
 | Endpoint | Purpose |
 |---|---|
 | `GET /api/health` | Liveness check |
+| `GET /api/knowledge` | Every rule the engine applies, served from the files the agents load. Backs the public `/checks` page. No auth |
 | `POST /api/scan` | Start a scan. Body: `website_url`, `pan_name`, `gst_legal_name`, `bank_account_name`, optional `business_type`. Returns `{job_id, status}` |
 | `GET /api/scan/{job_id}` | Poll status and fetch the report once complete |
 | `WS /ws/scan/{job_id}` | Live agent progress. Replays history on connect, so a client that joins mid-scan or after it still sees every event |
@@ -97,13 +98,17 @@ are what the engine actually produces when the sites are served locally.
 | CloudDesk SaaS | 4003 | Next.js | 55 | C | Refund and privacy pages are 40-60 word stubs, no T&C, no GSTIN |
 | Artisan Weaves | 4004 | Shopify | 81 | B | Nearly compliant — policies substantive but not exhaustive, GSTIN shown, KYC clean; missing a CSP header |
 
-Each site carries a different stack signature, so the integration advisor recommends a different
-Razorpay path for each: the Shopify app, Standard Checkout for Next.js, and so on.
+Each site carries a different stack signature, so the integration advisor is exercised across
+three of its nine stack profiles: Shopify gets the Payment Button, static HTML gets Payment Links,
+and both Next.js and Nuxt get Standard Checkout with different starter code. Two of the four land
+on the same product, which is correct rather than a gap: the recommendation follows the stack.
 
 The table shows the no-credentials numbers, so a reviewer cloning without an `.env` sees exactly
-these. With an LLM configured the totals move slightly — 19 / 29 / 58 / 80 — because the model
-refines the policy quality scores. The grades do not change, and ground truth is asserted on both
-paths.
+these. With an LLM configured the model refines the policy quality scores and the totals move by a
+point or two; the bounds in `ground_truth/*.json` are set to hold either way. One run exercises one
+path, so checking both means running the harness twice; it prints which path it actually took and
+says so when a configured provider turns out to be unreachable. The LLM-path totals are not quoted
+here because the credential available to me has expired and I have not re-measured them.
 
 Serve them and run the full comparison against ground truth:
 

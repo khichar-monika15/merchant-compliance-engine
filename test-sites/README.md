@@ -36,7 +36,9 @@ Expect `4/4 test sites passed`.
 
 ## A note on security headers
 
-Each site declares its security headers in `vercel.json`. A static local server does not apply
+Artisan declares four security headers in its `vercel.json` and CloudDesk declares one;
+FreshKart and QuickBites declare a rule with no headers in it, which is the planted fault. A
+static local server does not apply any of them, so
 them, so served locally **every** site reports CSP, HSTS, X-Frame-Options, X-Content-Type-Options
 and Referrer-Policy as missing, and the four PCI scores compress toward each other. The
 ground-truth files encode the local-serving values. Deploy to Vercel to exercise the header

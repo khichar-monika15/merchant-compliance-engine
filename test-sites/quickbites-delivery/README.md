@@ -9,7 +9,7 @@ Synthetic food delivery site for MCIE ground-truth validation. KYC mismatches + 
 | RBI-001 Refund Policy | FAIL | Missing entirely |
 | RBI-002 Privacy Policy | PARTIAL | Exists but generic boilerplate, quality 3/10 |
 | RBI-003 T&C | FAIL | Missing |
-| RBI-004 Contact Info | PARTIAL | Email + phone but NO physical address |
+| RBI-004 Contact Info | PARTIAL | Email, phone and a registered office, but the address is in New York, not India |
 | RBI-005 GST Display | FAIL | No GSTIN shown |
 | PCI-002 SRI | FAIL | 6+ scripts without SRI |
 | PCI-004 CSP Header | FAIL | Not set |
