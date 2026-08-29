@@ -52,6 +52,18 @@ def _html_to_text(html: str) -> str:
     return re.sub(r"\s*&\s*", " and ", text)
 
 
+def _overall_score(checks: list, gst_found: bool) -> int:
+    """RBI score out of 100: 80 for the four critical policies, 20 for GST display.
+
+    Each policy contributes in proportion to its quality rather than passing a binary gate at 5.
+    Under the gate a thin policy scraping a 5 scored the same as a thorough one, which meant the
+    LLM's quality judgment only changed the report if it happened to cross that one threshold.
+    """
+    earned = sum(c.quality_score for c in checks if c.found)
+    possible = len(checks) * 10
+    return int((earned / possible) * 80) + (20 if gst_found else 0)
+
+
 def _policy_quality(html: str, check: dict) -> int:
     """Rule-based quality score 1-10 for a page already known to be the policy page."""
     text = _html_to_text(html)
@@ -299,10 +311,10 @@ async def run(state: EngineState) -> dict:
 
         business_category = _detect_business_category(all_html)
 
-        # Compute overall score
-        checks = [refund_check, privacy_check, terms_check, contact_check]
-        critical_passed = sum(1 for c in checks if c.found and c.quality_score >= 5)
-        overall = int((critical_passed / len(checks)) * 80) + (20 if gst_found else 0)
+        overall = _overall_score(
+            [refund_check, privacy_check, terms_check, contact_check],
+            gst_found=gst_found,
+        )
 
         result = ComplianceResult(
             refund_policy=refund_check,

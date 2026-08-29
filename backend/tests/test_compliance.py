@@ -6,8 +6,41 @@ from backend.agents.compliance_auditor import (
     _detect_business_category,
     _html_to_text,
     _llm_quality_score,
+    _overall_score,
     _search_page_for_policy,
 )
+from backend.models.schemas import ComplianceCheck, Severity
+
+
+def _check(found: bool, quality: int) -> ComplianceCheck:
+    return ComplianceCheck(
+        check_id="RBI-001", name="x", found=found, quality_score=quality,
+        severity=Severity.CRITICAL, issues=[],
+    )
+
+
+class TestOverallScore:
+    """RBI score must track policy quality, not just presence.
+
+    It used to be `(passed / 4) * 80` where passed was a binary gate at quality >= 5, so a
+    thin policy scraping a 5 and a thorough one scoring 10 earned identical credit — and the
+    LLM's refinement only mattered if it happened to cross that single threshold.
+    """
+
+    def test_thorough_policies_outscore_barely_adequate_ones(self):
+        thorough = [_check(True, 10)] * 4
+        barely = [_check(True, 5)] * 4
+        assert _overall_score(thorough, gst_found=True) > _overall_score(barely, gst_found=True)
+
+    def test_perfect_site_scores_100(self):
+        assert _overall_score([_check(True, 10)] * 4, gst_found=True) == 100
+
+    def test_missing_policies_score_zero_regardless_of_quality_field(self):
+        assert _overall_score([_check(False, 9)] * 4, gst_found=False) == 0
+
+    def test_gst_display_is_worth_20(self):
+        checks = [_check(False, 0)] * 4
+        assert _overall_score(checks, gst_found=True) - _overall_score(checks, gst_found=False) == 20
 
 
 class TestContactPageChecker:
