@@ -222,7 +222,7 @@ async def run(state: EngineState) -> dict:
             duration_ms=round(duration_ms, 1),
         )
         return {
-            "errors": state.errors + [f"ReportGenerator failed: {e}"],
+            "errors": [f"ReportGenerator failed: {e}"],
             "current_phase": "error",
-            "audit_log": state.audit_log + [log],
+            "audit_log": [log],
         }

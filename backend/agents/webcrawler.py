@@ -44,7 +44,7 @@ async def run(state: EngineState) -> dict:
         return {
             "crawl_result": crawl_result,
             "current_phase": "crawled",
-            "audit_log": state.audit_log + [log],
+            "audit_log": [log],
         }
 
     except Exception as e:
@@ -58,6 +58,6 @@ async def run(state: EngineState) -> dict:
         )
         return {
             "current_phase": "crawl_failed",
-            "errors": state.errors + [f"WebCrawler failed: {e}"],
-            "audit_log": state.audit_log + [log],
+            "errors": [f"WebCrawler failed: {e}"],
+            "audit_log": [log],
         }

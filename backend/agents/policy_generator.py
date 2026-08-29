@@ -87,7 +87,7 @@ async def run(state: EngineState) -> dict:
         if not needed:
             return {
                 "policy_gen_result": PolicyGenResult(policies_needed=[]),
-                "audit_log": state.audit_log + [AuditLogEntry(
+                "audit_log": [AuditLogEntry(
                     timestamp=t0.isoformat(),
                     agent="PolicyGenerator",
                     action="Policy generation check",
@@ -149,7 +149,7 @@ async def run(state: EngineState) -> dict:
                 generated_policies=generated,
                 policies_needed=needed,
             ),
-            "audit_log": state.audit_log + [log],
+            "audit_log": [log],
         }
 
     except Exception as e:
@@ -162,6 +162,6 @@ async def run(state: EngineState) -> dict:
             duration_ms=round(duration_ms, 1),
         )
         return {
-            "errors": state.errors + [f"PolicyGenerator failed: {e}"],
-            "audit_log": state.audit_log + [log],
+            "errors": [f"PolicyGenerator failed: {e}"],
+            "audit_log": [log],
         }

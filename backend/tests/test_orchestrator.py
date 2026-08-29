@@ -1,0 +1,118 @@
+"""Graph wiring and state-channel semantics.
+
+The pipeline previously ran on `StateGraph(dict)`, which compiles to a single `__root__`
+channel: any node returning a partial dict silently replaced the entire state. It only worked
+because every node happened to return the whole state. These tests pin the contract so a future
+agent returning just its own key cannot wipe the report.
+"""
+from langgraph.graph import END, StateGraph
+
+from backend.agents.orchestrator import (
+    GraphState,
+    _route_after_crawl,
+    _route_after_parallel,
+    build_workflow,
+)
+
+
+def _run(nodes: list, seed: dict) -> dict:
+    g = StateGraph(GraphState)
+    previous = None
+    for name, fn in nodes:
+        g.add_node(name, fn)
+        if previous is None:
+            g.set_entry_point(name)
+        else:
+            g.add_edge(previous, name)
+        previous = name
+    g.add_edge(previous, END)
+    return g.compile().invoke(seed)
+
+
+class TestStateChannels:
+    def test_partial_update_does_not_wipe_other_keys(self):
+        final = _run(
+            [
+                ("a", lambda s: {"current_phase": "crawled"}),
+                ("b", lambda s: {"compliance_result": {"overall_score": 42}}),
+            ],
+            {"merchant_input": {"pan_name": "Acme"}},
+        )
+        assert final["merchant_input"] == {"pan_name": "Acme"}, "seed state was wiped"
+        assert final["current_phase"] == "crawled", "earlier node's write was wiped"
+        assert final["compliance_result"] == {"overall_score": 42}
+
+    def test_audit_log_accumulates_across_nodes(self):
+        final = _run(
+            [
+                ("a", lambda s: {"audit_log": [{"agent": "WebCrawler"}]}),
+                ("b", lambda s: {"audit_log": [{"agent": "PCIScanner"}]}),
+            ],
+            {"audit_log": []},
+        )
+        assert [e["agent"] for e in final["audit_log"]] == ["WebCrawler", "PCIScanner"]
+
+    def test_errors_accumulate_across_nodes(self):
+        final = _run(
+            [
+                ("a", lambda s: {"errors": ["first"]}),
+                ("b", lambda s: {"errors": ["second"]}),
+            ],
+            {"errors": []},
+        )
+        assert final["errors"] == ["first", "second"]
+
+    def test_scalar_channels_overwrite_rather_than_append(self):
+        final = _run(
+            [
+                ("a", lambda s: {"current_phase": "crawled"}),
+                ("b", lambda s: {"current_phase": "complete"}),
+            ],
+            {"current_phase": "queued"},
+        )
+        assert final["current_phase"] == "complete"
+
+
+class TestRouting:
+    def test_skips_analysis_only_when_crawl_returned_nothing(self):
+        assert _route_after_crawl({"current_phase": "crawl_failed", "crawl_result": None}) == "generate_report"
+        assert _route_after_crawl({"current_phase": "error", "crawl_result": {"pages_found": {}}}) == "generate_report"
+
+    def test_partial_crawl_still_analysed(self):
+        state = {"current_phase": "crawl_failed", "crawl_result": {"pages_found": {"u": "<html>"}}}
+        assert _route_after_crawl(state) == "parallel_analysis"
+
+    def test_healthy_crawl_analysed(self):
+        state = {"current_phase": "crawled", "crawl_result": {"pages_found": {"u": "<html>"}}}
+        assert _route_after_crawl(state) == "parallel_analysis"
+
+    def test_policy_generation_when_a_policy_is_thin(self):
+        compliance = {
+            "refund_policy": {"found": True, "quality_score": 3},
+            "privacy_policy": {"found": True, "quality_score": 8},
+            "terms_conditions": {"found": True, "quality_score": 8},
+        }
+        assert _route_after_parallel({"compliance_result": compliance}) == "generate_policies"
+
+    def test_no_policy_generation_when_all_adequate(self):
+        compliance = {
+            "refund_policy": {"found": True, "quality_score": 8},
+            "privacy_policy": {"found": True, "quality_score": 8},
+            "terms_conditions": {"found": True, "quality_score": 7},
+        }
+        assert _route_after_parallel({"compliance_result": compliance}) == "generate_report"
+
+    def test_missing_compliance_result_goes_straight_to_report(self):
+        assert _route_after_parallel({"compliance_result": None}) == "generate_report"
+
+
+class TestGraphShape:
+    def test_workflow_compiles(self):
+        assert build_workflow() is not None
+
+    def test_declared_channels_are_per_key(self):
+        """A regression guard: a single __root__ channel means partial updates wipe state."""
+        channels = set(build_workflow().channels)
+        assert "__root__" not in channels
+        for key in ("audit_log", "errors", "crawl_result", "readiness_report"):
+            assert key in channels, f"{key} has no dedicated channel"

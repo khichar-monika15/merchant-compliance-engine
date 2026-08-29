@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import operator
+from typing import Annotated, Any, Optional, TypedDict
 
 from langgraph.graph import END, StateGraph
 
@@ -16,7 +18,28 @@ from backend.agents import (
 from backend.models.schemas import EngineState, MerchantInput
 
 
-# LangGraph requires state as a plain dict or TypedDict; we adapt EngineState
+class GraphState(TypedDict, total=False):
+    """Per-key channels for the pipeline.
+
+    Declaring the keys individually is what makes a partial node return safe: LangGraph merges
+    it into the existing state instead of replacing the whole state, which is what a bare
+    `StateGraph(dict)` (a single `__root__` channel) would do. `audit_log` and `errors` use an
+    append reducer so concurrent agents accumulate rather than overwrite each other.
+    """
+    merchant_input: dict
+    crawl_result: Optional[dict]
+    compliance_result: Optional[dict]
+    pci_result: Optional[dict]
+    kyc_result: Optional[dict]
+    policy_gen_result: Optional[dict]
+    integration_result: Optional[dict]
+    readiness_report: Optional[dict]
+    current_phase: str
+    audit_log: Annotated[list[dict], operator.add]
+    errors: Annotated[list[str], operator.add]
+
+
+# LangGraph works on plain dicts; agents work on the validated EngineState
 def _state_to_dict(state: EngineState) -> dict:
     return state.model_dump()
 
@@ -25,19 +48,10 @@ def _dict_to_state(d: dict) -> EngineState:
     return EngineState.model_validate(d)
 
 
-def _merge_state(current: dict, update: dict) -> dict:
-    """Merge a partial agent update into the state dict.
-
-    Agents return cumulative audit_log and errors lists, so a plain overwrite is correct.
-    """
-    return {**current, **update}
-
-
-# ── Node functions (LangGraph expects plain dict → dict) ──────────────────────
+# ── Node functions: each returns ONLY the keys it changed ─────────────────────
 
 def _validate_input(state: dict) -> dict:
-    s = _dict_to_state(state)
-    inp = s.merchant_input
+    inp = _dict_to_state(state).merchant_input
     errors = []
     if not str(inp.website_url).strip():
         errors.append("Website URL is required")
@@ -47,65 +61,40 @@ def _validate_input(state: dict) -> dict:
         errors.append("GST legal name is required")
     if not inp.bank_account_name.strip():
         errors.append("Bank account name is required")
-    update = {
-        "current_phase": "validated" if not errors else "error",
-        "errors": s.errors + errors,
-    }
-    return _merge_state(state, update)
+    return {"current_phase": "validated" if not errors else "error", "errors": errors}
 
 
 async def _crawl(state: dict) -> dict:
-    s = _dict_to_state(state)
-    update = await webcrawler.run(s)
-    return _merge_state(state, _serialise(update))
+    return _serialise(await webcrawler.run(_dict_to_state(state)))
 
 
 async def _parallel_analysis(state: dict) -> dict:
-    """Run compliance, PCI, KYC, and integration agents concurrently."""
+    """Run compliance, PCI, KYC and integration concurrently, combining their partial updates."""
     s = _dict_to_state(state)
-    results = await asyncio.gather(
-        compliance_auditor.run(s),
-        pci_scanner.run(s),
-        kyc_validator.run(s),
-        integration_advisor.run(s),
-        return_exceptions=True,
-    )
+    agents = (compliance_auditor, pci_scanner, kyc_validator, integration_advisor)
+    results = await asyncio.gather(*(a.run(s) for a in agents), return_exceptions=True)
 
-    merged = state.copy()
-    combined_log = list(state.get("audit_log", []))
-    combined_errors = list(state.get("errors", []))
-
-    for result in results:
-        if isinstance(result, Exception):
-            combined_errors.append(str(result))
-        elif isinstance(result, dict):
-            serialised = _serialise(result)
-            for key, value in serialised.items():
-                if key == "audit_log":
-                    # audit_log from each agent includes prior entries — take the last one's additions
-                    new_entries = [e for e in value if e not in combined_log]
-                    combined_log.extend(new_entries)
-                elif key == "errors":
-                    combined_errors.extend(v for v in value if v not in combined_errors)
-                else:
-                    merged[key] = value
-
-    merged["audit_log"] = combined_log
-    merged["errors"] = combined_errors
-    merged["current_phase"] = "parallel_complete"
-    return merged
+    update: dict[str, Any] = {"current_phase": "parallel_complete", "audit_log": [], "errors": []}
+    for agent, result in zip(agents, results):
+        if isinstance(result, BaseException):
+            # Each agent already handles its own errors, so reaching here means a genuine bug
+            name = agent.__name__.rsplit(".", 1)[-1]
+            update["errors"].append(f"{name} raised {type(result).__name__}: {result}")
+            continue
+        for key, value in _serialise(result).items():
+            if key in ("audit_log", "errors"):
+                update[key].extend(value)
+            else:
+                update[key] = value
+    return update
 
 
 async def _generate_policies(state: dict) -> dict:
-    s = _dict_to_state(state)
-    update = await policy_generator.run(s)
-    return _merge_state(state, _serialise(update))
+    return _serialise(await policy_generator.run(_dict_to_state(state)))
 
 
 async def _generate_report(state: dict) -> dict:
-    s = _dict_to_state(state)
-    update = await report_generator.run(s)
-    return _merge_state(state, _serialise(update))
+    return _serialise(await report_generator.run(_dict_to_state(state)))
 
 
 def _route_after_crawl(state: dict) -> str:
@@ -187,7 +176,7 @@ def build_workflow(progress_fn=None):
         await _emit("ReportGenerator", "Report generation complete", 98, done=True)
         return result
 
-    workflow = StateGraph(dict)
+    workflow = StateGraph(GraphState)
     workflow.add_node("validate_input", _validate_input)
     workflow.add_node("crawl_website", _crawl_node)
     workflow.add_node("parallel_analysis", _parallel_node)

@@ -291,11 +291,11 @@ async def run(state: EngineState) -> dict:
 
         update: dict = {
             "compliance_result": result,
-            "audit_log": state.audit_log + [log],
+            "audit_log": [log],
         }
         # A silent LLM failure would otherwise pass every policy at the threshold score
         if any((c.details or "").startswith("LLM scoring unavailable") for c in (refund_check, privacy_check, terms_check)):
-            update["errors"] = state.errors + [
+            update["errors"] = [
                 "ComplianceAuditor: LLM unavailable — policy quality scored by rules only"
             ]
         return update
@@ -310,8 +310,8 @@ async def run(state: EngineState) -> dict:
             duration_ms=round(duration_ms, 1),
         )
         return {
-            "errors": state.errors + [f"ComplianceAuditor failed: {e}"],
-            "audit_log": state.audit_log + [log],
+            "errors": [f"ComplianceAuditor failed: {e}"],
+            "audit_log": [log],
         }
 
 

@@ -139,7 +139,7 @@ async def run(state: EngineState) -> dict:
 
         return {
             "pci_result": pci_result,
-            "audit_log": state.audit_log + [log],
+            "audit_log": [log],
         }
 
     except Exception as e:
@@ -152,6 +152,6 @@ async def run(state: EngineState) -> dict:
             duration_ms=round(duration_ms, 1),
         )
         return {
-            "errors": state.errors + [f"PCIScanner failed: {e}"],
-            "audit_log": state.audit_log + [log],
+            "errors": [f"PCIScanner failed: {e}"],
+            "audit_log": [log],
         }

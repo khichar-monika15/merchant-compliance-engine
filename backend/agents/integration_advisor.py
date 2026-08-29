@@ -93,7 +93,7 @@ async def run(state: EngineState) -> dict:
 
         return {
             "integration_result": result,
-            "audit_log": state.audit_log + [log],
+            "audit_log": [log],
         }
 
     except Exception as e:
@@ -106,6 +106,6 @@ async def run(state: EngineState) -> dict:
             duration_ms=round(duration_ms, 1),
         )
         return {
-            "errors": state.errors + [f"IntegrationAdvisor failed: {e}"],
-            "audit_log": state.audit_log + [log],
+            "errors": [f"IntegrationAdvisor failed: {e}"],
+            "audit_log": [log],
         }

@@ -38,7 +38,7 @@ async def run(state: EngineState) -> dict:
 
         return {
             "kyc_result": kyc_result,
-            "audit_log": state.audit_log + [log],
+            "audit_log": [log],
         }
 
     except Exception as e:
@@ -51,6 +51,6 @@ async def run(state: EngineState) -> dict:
             duration_ms=round(duration_ms, 1),
         )
         return {
-            "errors": state.errors + [f"KYCValidator failed: {e}"],
-            "audit_log": state.audit_log + [log],
+            "errors": [f"KYCValidator failed: {e}"],
+            "audit_log": [log],
         }
