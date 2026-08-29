@@ -142,6 +142,62 @@ class TestPCIScoring:
         assert score == 10  # 50 - 15 (count) - 25 (SRI cap)
 
 
+class TestFirstPartyClassification:
+    """A merchant's own scripts must not count against its PCI score."""
+
+    SITE = "https://www.example.com/checkout"
+
+    def test_apex_script_on_www_site_is_first_party(self):
+        scripts = extract_scripts('<script src="https://example.com/app.js"></script>', self.SITE)
+        assert scripts[0]["is_first_party"] is True
+
+    def test_www_script_on_apex_site_is_first_party(self):
+        scripts = extract_scripts('<script src="https://www.example.com/app.js"></script>', "https://example.com/")
+        assert scripts[0]["is_first_party"] is True
+
+    def test_subdomain_is_first_party(self):
+        scripts = extract_scripts('<script src="https://cdn.example.com/app.js"></script>', self.SITE)
+        assert scripts[0]["is_first_party"] is True
+
+    def test_genuine_third_party_still_detected(self):
+        scripts = extract_scripts('<script src="https://evil-example.com/x.js"></script>', self.SITE)
+        assert scripts[0]["is_first_party"] is False
+
+    def test_lookalike_suffix_is_not_first_party(self):
+        scripts = extract_scripts('<script src="https://notexample.com/x.js"></script>', self.SITE)
+        assert scripts[0]["is_first_party"] is False
+
+
+class TestHeaderPageSelection:
+    from backend.models.schemas import CrawlResult as _CR
+
+    def test_prefers_checkout_page_over_first_crawled(self):
+        from backend.agents.pci_scanner import _headers_to_grade
+
+        crawl = self._CR(http_headers={
+            "https://shop.in/privacy": {"x-frame-options": "DENY"},
+            "https://shop.in/checkout": {"content-security-policy": "default-src 'self'"},
+        })
+        url, headers = _headers_to_grade(crawl, "https://shop.in")
+        assert url.endswith("/checkout")
+        assert "content-security-policy" in headers
+
+    def test_falls_back_to_homepage(self):
+        from backend.agents.pci_scanner import _headers_to_grade
+
+        crawl = self._CR(http_headers={
+            "https://shop.in/privacy": {"x-frame-options": "DENY"},
+            "https://shop.in": {"strict-transport-security": "max-age=31536000"},
+        })
+        url, headers = _headers_to_grade(crawl, "https://shop.in")
+        assert url == "https://shop.in"
+
+    def test_no_headers_at_all(self):
+        from backend.agents.pci_scanner import _headers_to_grade
+
+        assert _headers_to_grade(self._CR(), "https://shop.in") == ("", {})
+
+
 class TestAgentRunContract:
     """Every agent returns a partial state update whose keys exist on EngineState."""
 

@@ -106,6 +106,31 @@ class TestRouting:
         assert _route_after_parallel({"compliance_result": None}) == "generate_report"
 
 
+class TestPipelineTimeout:
+    async def test_timeout_returns_state_with_error_not_exception(self, monkeypatch):
+        """A stalled scan must fail the job with a reason, not hang or raise."""
+        import asyncio
+
+        from backend.agents import orchestrator
+        from backend.models.schemas import MerchantInput
+
+        class _Stalled:
+            async def ainvoke(self, _state):
+                await asyncio.sleep(60)
+
+        monkeypatch.setattr(orchestrator, "build_workflow", lambda progress_fn=None: _Stalled())
+
+        merchant = MerchantInput(
+            website_url="https://example.com",
+            pan_name="Acme", gst_legal_name="Acme", bank_account_name="Acme",
+        )
+        state = await orchestrator.run_pipeline(merchant, timeout=0.05)
+
+        assert state.readiness_report is None
+        assert state.current_phase == "error"
+        assert any("time limit" in e for e in state.errors)
+
+
 class TestGraphShape:
     def test_workflow_compiles(self):
         assert build_workflow() is not None

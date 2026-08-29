@@ -28,10 +28,25 @@ def _extract_domain(src: str) -> str:
         return ""
 
 
+def _registrable_domain(domain: str) -> str:
+    """Strip a leading 'www.' so the apex and the www host are treated as one site."""
+    domain = domain.lower().strip().rstrip(".")
+    return domain[4:] if domain.startswith("www.") else domain
+
+
 def _is_first_party(domain: str, page_domain: str) -> bool:
+    """A merchant's own script is first-party whether it is served from the apex or a subdomain.
+
+    Comparing raw hosts marked example.com as third-party on www.example.com, which inflated the
+    third-party count and produced false 'PCI 6.4.3 integrity violation' gaps.
+    """
     if not domain:
-        return True
-    return domain == page_domain or domain.endswith("." + page_domain)
+        return True  # inline script
+    site = _registrable_domain(page_domain)
+    host = _registrable_domain(domain)
+    if not site:
+        return False
+    return host == site or host.endswith("." + site)
 
 
 def check_sri(tag) -> dict:

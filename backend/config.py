@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     crawler_timeout: int = 30
     crawler_max_pages: int = 20
+    # Hard ceiling for one end-to-end scan, so a stalled crawl or LLM cannot pin a job forever
+    pipeline_timeout: float = 300.0
 
 
 @lru_cache

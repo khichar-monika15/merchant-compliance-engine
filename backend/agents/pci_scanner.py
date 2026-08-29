@@ -4,6 +4,7 @@ import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 from backend.models.schemas import AuditLogEntry, EngineState, PCIResult
 from backend.tools.csp_parser import analyze_security_headers
@@ -89,6 +90,34 @@ def _score_scripts(third_party_count: int, without_sri: int) -> tuple[int, list[
     return max(0, score), issues
 
 
+# PCI 6.4.3 and 11.6.1 govern the pages that take payment, so grade those first
+_PAYMENT_PATH_HINTS = ("checkout", "payment", "pay", "cart", "billing", "order")
+
+
+def _headers_to_grade(crawl, site_url: str) -> tuple[str, dict[str, str]]:
+    """Pick which page's headers represent the site.
+
+    Prefers a checkout or payment page, then the homepage, and only then falls back to whatever
+    was crawled first — the previous behaviour relied on dict insertion order, so a failed
+    homepage fetch silently graded a random policy page instead.
+    """
+    headers = crawl.http_headers or {}
+    if not headers:
+        return "", {}
+
+    for url, hdrs in headers.items():
+        path = urlparse(url).path.lower()
+        if any(hint in path for hint in _PAYMENT_PATH_HINTS):
+            return url, hdrs
+
+    for candidate in (site_url, site_url.rstrip("/"), site_url.rstrip("/") + "/"):
+        if candidate in headers:
+            return candidate, headers[candidate]
+
+    url, hdrs = next(iter(headers.items()))
+    return url, hdrs
+
+
 async def run(state: EngineState) -> dict:
     t0 = datetime.now(timezone.utc)
 
@@ -101,13 +130,8 @@ async def run(state: EngineState) -> dict:
         third_party = [s for s in scripts if not s.is_first_party and not s.is_inline]
         without_sri = [s for s in third_party if not s.has_sri]
 
-        # Analyse security headers from homepage (first URL in http_headers)
-        all_headers = crawl.http_headers
-        homepage_headers: dict[str, str] = {}
-        if all_headers:
-            homepage_headers = next(iter(all_headers.values()), {})
-
-        security_analysis = analyze_security_headers(homepage_headers)
+        graded_url, graded_headers = _headers_to_grade(crawl, str(state.merchant_input.website_url))
+        security_analysis = analyze_security_headers(graded_headers)
 
         header_score, header_issues = _score_headers(security_analysis)
         script_score, script_issues = _score_scripts(len(third_party), len(without_sri))
@@ -133,7 +157,8 @@ async def run(state: EngineState) -> dict:
             agent="PCIScanner",
             action="PCI DSS v4.0.1 surface scan",
             result=f"Score {total_score}/100 — {len(pci_result.critical_issues)} issues found "
-                   f"({len(third_party)} 3rd-party scripts, {len(without_sri)} without SRI)",
+                   f"({len(third_party)} 3rd-party scripts, {len(without_sri)} without SRI; "
+                   f"headers graded on {graded_url or 'no page'})",
             duration_ms=round(duration_ms, 1),
         )
 

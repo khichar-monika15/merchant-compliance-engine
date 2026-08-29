@@ -15,6 +15,7 @@ from backend.agents import (
     webcrawler,
     pci_scanner,
 )
+from backend.config import get_settings
 from backend.models.schemas import EngineState, MerchantInput
 
 
@@ -204,9 +205,29 @@ def build_workflow(progress_fn=None):
     return workflow.compile()
 
 
-async def run_pipeline(merchant_input: MerchantInput, progress_fn=None) -> EngineState:
-    """Run the full compliance pipeline for a merchant and return the final state."""
+async def run_pipeline(
+    merchant_input: MerchantInput,
+    progress_fn=None,
+    timeout: float | None = None,
+) -> EngineState:
+    """Run the full compliance pipeline for a merchant and return the final state.
+
+    A slow site or a stalled LLM must not pin a job at "running" forever, so the whole run is
+    bounded. On timeout the caller still gets a valid EngineState carrying the error rather
+    than an exception, so the API can report a failure with a reason.
+    """
+    if timeout is None:
+        timeout = get_settings().pipeline_timeout
+
     app = build_workflow(progress_fn=progress_fn)
     initial_state = _state_to_dict(EngineState(merchant_input=merchant_input))
-    final_state = await app.ainvoke(initial_state)
+
+    try:
+        final_state = await asyncio.wait_for(app.ainvoke(initial_state), timeout=timeout)
+    except asyncio.TimeoutError:
+        state = EngineState(merchant_input=merchant_input)
+        state.current_phase = "error"
+        state.errors = [f"Pipeline exceeded the {timeout:.0f}s time limit and was cancelled"]
+        return state
+
     return _dict_to_state(final_state)
