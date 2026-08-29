@@ -21,51 +21,27 @@ from backend.models.schemas import MerchantInput
 _GT_DIR = Path(__file__).parent / "ground_truth"
 
 TEST_CASES = [
-    {
-        "name": "FreshKart India (Grade F)",
-        "gt_file": "freshkart_expected.json",
-        "input": {
-            "website_url": "http://127.0.0.1:4001",
-            "pan_name": "FreshKart Pvt. Ltd.",
-            "gst_legal_name": "FRESHKART PRIVATE LIMITED",
-            "bank_account_name": "Fresh Kart Private Limited",
-            "business_type": "ecommerce",
-        },
-    },
-    {
-        "name": "Artisan Weaves (Grade B)",
-        "gt_file": "artisan_expected.json",
-        "input": {
-            "website_url": "http://127.0.0.1:4004",
-            "pan_name": "Artisan Weaves Private Limited",
-            "gst_legal_name": "ARTISAN WEAVES PRIVATE LIMITED",
-            "bank_account_name": "Artisan Weaves Private Limited",
-            "business_type": "ecommerce",
-        },
-    },
-    {
-        "name": "CloudDesk SaaS (Grade C)",
-        "gt_file": "clouddesk_expected.json",
-        "input": {
-            "website_url": "http://127.0.0.1:4003",
-            "pan_name": "CloudDesk Solutions Private Limited",
-            "gst_legal_name": "CLOUDDESK SOLUTIONS PRIVATE LIMITED",
-            "bank_account_name": "CloudDesk Solutions Private Limited",
-            "business_type": "saas",
-        },
-    },
-    {
-        "name": "QuickBites Delivery (Grade D)",
-        "gt_file": "quickbites_expected.json",
-        "input": {
-            "website_url": "http://127.0.0.1:4002",
-            "pan_name": "QuickBites Pvt. Ltd.",
-            "gst_legal_name": "QUICKBITES PRIVATE LIMITED",
-            "bank_account_name": "Quick Bites Private Limited",
-            "business_type": "food_delivery",
-        },
-    },
+    ("FreshKart India (Grade F)", "freshkart_expected.json"),
+    ("Artisan Weaves (Grade B)", "artisan_expected.json"),
+    ("CloudDesk SaaS (Grade C)", "clouddesk_expected.json"),
+    ("QuickBites Delivery (Grade D)", "quickbites_expected.json"),
 ]
+
+
+def _merchant_from(gt: dict) -> MerchantInput:
+    """The fixture is the single source of truth for the merchant under test.
+
+    The URL, the three KYC names and the business type used to be duplicated here, so a fixture
+    could be edited without changing what was actually scanned.
+    """
+    kyc = gt["kyc_input"]
+    return MerchantInput(
+        website_url=gt["served_on"],
+        pan_name=kyc["pan_name"],
+        gst_legal_name=kyc["gst_name"],
+        bank_account_name=kyc["bank_name"],
+        business_type=gt["business_type"],
+    )
 
 
 def _check(label: str, condition: bool, actual, expected) -> bool:
@@ -74,13 +50,13 @@ def _check(label: str, condition: bool, actual, expected) -> bool:
     return condition
 
 
-async def validate_one(tc: dict) -> bool:
+async def validate_one(name: str, gt_file: str) -> bool:
     print(f"\n{'='*60}")
-    print(f"Testing: {tc['name']}")
+    print(f"Testing: {name}")
     print(f"{'='*60}")
 
-    gt = json.loads((_GT_DIR / tc["gt_file"]).read_text())
-    merchant = MerchantInput(**tc["input"])
+    gt = json.loads((_GT_DIR / gt_file).read_text())
+    merchant = _merchant_from(gt)
 
     state = await run_pipeline(merchant)
     report = state.readiness_report
@@ -183,15 +159,26 @@ async def validate_one(tc: dict) -> bool:
                 total += 1
                 passed += int(_check(key, actual == pci_exp[key], actual, pci_exp[key]))
 
+    # Tech stack drives the Razorpay integration recommendation, so a wrong stack means a wrong
+    # recommendation even when every compliance number is right.
+    if "expected_stack" in gt and state.integration_result:
+        detected = list((state.integration_result.detected_stack or {}).keys())
+        total += 1
+        passed += int(_check("Detected stack", detected == [gt["expected_stack"]],
+                             detected, [gt["expected_stack"]]))
+        total += 1
+        passed += int(_check("Starter code non-empty", bool(state.integration_result.starter_code),
+                             len(state.integration_result.starter_code or ""), "> 0 chars"))
+
     print(f"\n  Result: {passed}/{total} checks passed")
     return passed == total
 
 
 async def main():
     results = []
-    for tc in TEST_CASES:
-        ok = await validate_one(tc)
-        results.append((tc["name"], ok))
+    for name, gt_file in TEST_CASES:
+        ok = await validate_one(name, gt_file)
+        results.append((name, ok))
 
     print(f"\n{'='*60}")
     print("GROUND TRUTH VALIDATION SUMMARY")

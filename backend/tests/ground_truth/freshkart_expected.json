@@ -1,32 +1,39 @@
 {
   "site": "freshkart-india",
   "served_on": "http://127.0.0.1:4001",
+  "business_type": "ecommerce",
   "kyc_input": {
     "pan_name": "FreshKart Pvt. Ltd.",
     "gst_name": "FRESHKART PRIVATE LIMITED",
     "bank_name": "Fresh Kart Private Limited"
   },
-  "expected_score_range": [12, 24],
+  "expected_score_range": [14, 24],
   "expected_grade": "F",
+  "expected_stack": "static_html",
   "compliance_expected": {
     "refund_policy": {"found": false},
     "privacy_policy": {"found": false},
     "terms_conditions": {"found": false},
-    "contact_info": {"found": true, "quality_score_min": 4},
+    "contact_info": {"found": true, "quality_score_min": 3, "quality_score_max": 5},
     "gst_display": {"found": false}
   },
   "pci_expected": {
-    "total_scripts_min": 12,
-    "third_party_scripts_min": 8,
-    "scripts_without_sri_min": 8,
+    "total_scripts_min": 21,
+    "total_scripts_max": 21,
+    "third_party_scripts_min": 18,
+    "third_party_scripts_max": 18,
+    "scripts_without_sri_min": 17,
+    "scripts_without_sri_max": 17,
     "csp_present": false,
     "hsts_present": false,
     "referrer_policy_present": false
   },
   "kyc_expected": {
     "overall_consistent": false,
-    "issues_min_count": 2
+    "issues_min_count": 5,
+    "issues_max_count": 5
   },
-  "critical_gaps_min": 8,
+  "critical_gaps_min": 11,
+  "critical_gaps_max": 13,
   "notes": "Grade F — no policy pages at all, 18 third-party scripts with 17 lacking SRI, no security headers, and Pvt./Private plus spacing mismatches across PAN, GST and bank. The only GSTIN on the site is a commented-out placeholder, which must not count as displayed."
 }

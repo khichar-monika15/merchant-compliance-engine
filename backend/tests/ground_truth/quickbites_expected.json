@@ -1,31 +1,39 @@
 {
   "site": "quickbites-delivery",
   "served_on": "http://127.0.0.1:4002",
+  "business_type": "food_delivery",
   "kyc_input": {
     "pan_name": "QuickBites Pvt. Ltd.",
     "gst_name": "QUICKBITES PRIVATE LIMITED",
     "bank_name": "Quick Bites Private Limited"
   },
-  "expected_score_range": [25, 45],
+  "expected_score_range": [25, 40],
   "expected_grade": "D",
+  "expected_stack": "vue_nuxt",
   "compliance_expected": {
     "refund_policy": {"found": false},
-    "privacy_policy": {"found": true, "quality_score_max": 7},
+    "privacy_policy": {"found": true, "quality_score_min": 2, "quality_score_max": 4},
     "terms_conditions": {"found": false},
-    "contact_info": {"found": true, "quality_score_min": 4},
+    "contact_info": {"found": true, "quality_score_min": 6, "quality_score_max": 8},
     "gst_display": {"found": false}
   },
   "pci_expected": {
-    "scripts_without_sri_min": 5,
-    "third_party_scripts_min": 5,
+    "total_scripts_min": 9,
+    "total_scripts_max": 9,
+    "third_party_scripts_min": 6,
+    "third_party_scripts_max": 6,
+    "scripts_without_sri_min": 6,
+    "scripts_without_sri_max": 6,
     "csp_present": false,
     "hsts_present": false,
     "referrer_policy_present": false
   },
   "kyc_expected": {
     "overall_consistent": false,
-    "issues_min_count": 2
+    "issues_min_count": 5,
+    "issues_max_count": 5
   },
-  "critical_gaps_min": 6,
-  "notes": "Grade D — copy-paste privacy policy naming a different company, no refund policy or T&C, no GSTIN, US address, and Pvt./Private plus spacing mismatches across the three KYC documents."
+  "critical_gaps_min": 9,
+  "critical_gaps_max": 11,
+  "notes": "Grade D — no refund policy or T&C, a thin boilerplate privacy policy, no GSTIN, no physical address at all, and Pvt./Private plus word-spacing mismatches across the three KYC documents."
 }
