@@ -60,22 +60,35 @@ def check_sri(tag) -> dict:
 
 
 def score_script_risk(domain: str, risk_db: dict) -> dict:
+    """Classify a script's domain, preferring the most specific declared match.
+
+    First-wins matching meant a broad entry shadowed a narrow one: `googleapis.com` is declared
+    as "google" and `fonts.googleapis.com` as "fonts", so whichever came first in the file
+    decided, and the fonts category could never be produced.
+    """
     if not domain:
         return {"risk_level": "low", "category": "unknown"}
 
-    for entry in risk_db.get("low_risk", []):
-        if isinstance(entry, dict):
-            if any(domain.endswith(d) for d in entry.get("domains", [])):
-                return {"risk_level": "low", "category": entry.get("category", "unknown")}
-        elif domain.endswith(entry):
-            return {"risk_level": "low", "category": "unknown"}
+    tiers = (
+        ("low", risk_db.get("low_risk", []), "unknown"),
+        ("medium", risk_db.get("medium_risk", []), "tracking"),
+    )
 
-    for entry in risk_db.get("medium_risk", []):
-        if isinstance(entry, dict):
-            if any(domain.endswith(d) for d in entry.get("domains", [])):
-                return {"risk_level": "medium", "category": entry.get("category", "tracking")}
-        elif domain.endswith(entry):
-            return {"risk_level": "medium", "category": "tracking"}
+    best: tuple[int, str, str] | None = None
+    for risk_level, entries, default_category in tiers:
+        for entry in entries:
+            if isinstance(entry, dict):
+                domains = entry.get("domains", [])
+                category = entry.get("category", default_category)
+            else:
+                domains, category = [entry], default_category
+            for declared in domains:
+                if domain == declared or domain.endswith("." + declared):
+                    if best is None or len(declared) > best[0]:
+                        best = (len(declared), risk_level, category)
+
+    if best is not None:
+        return {"risk_level": best[1], "category": best[2]}
 
     for indicator in risk_db.get("high_risk_indicators", []):
         if indicator in domain:

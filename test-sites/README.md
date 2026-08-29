@@ -10,7 +10,7 @@ produces when the sites are served locally.
 
 | Site | Port | Stack | Score | Grade | Key violations |
 |------|------|-------|-------|-------|----------------|
-| `freshkart-india/` | 4001 | static HTML | 19 | F | No policy pages, 18 third-party scripts (17 without SRI), no security headers, GSTIN only in an HTML comment, KYC mismatch |
+| `freshkart-india/` | 4001 | static HTML | 19 | F | No policy pages, 18 third-party scripts (15 without SRI, two Razorpay scripts are exempt), no security headers, GSTIN only in an HTML comment, KYC mismatch |
 | `quickbites-delivery/` | 4002 | Nuxt | 28 | D | KYC name mismatch, no refund or T&C, thin boilerplate privacy policy, US-only address, no GSTIN |
 | `clouddesk-saas/` | 4003 | Next.js | 55 | C | Refund and privacy pages are 40-60 word stubs, missing T&C and GSTIN |
 | `artisan-weaves/` | 4004 | Shopify | 81 | B | Nearly compliant — policies substantive but not exhaustive, GSTIN shown, KYC clean; missing a CSP header |

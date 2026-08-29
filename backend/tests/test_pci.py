@@ -226,3 +226,34 @@ class TestAgentRunContract:
         # The FreshKart fixture has Pvt./Private and spacing differences planted
         assert update["kyc_result"].overall_consistent is False
         assert update["audit_log"][-1].agent == "KYCValidator"
+
+
+class TestRiskCategoriesAreReachable:
+    """A category declared in the risk database that no domain can produce is an inert rule.
+
+    Matching was first-wins over `endswith`, so `googleapis.com` (category "google") shadowed
+    `fonts.googleapis.com` (category "fonts") and the fonts category could never be emitted.
+    """
+
+    def test_every_declared_category_can_be_produced(self):
+        from backend.tools.script_analyzer import _load_risk_db, score_script_risk
+
+        db = _load_risk_db()
+        declared, produced = set(), set()
+        for level in ("low_risk", "medium_risk"):
+            for entry in db[level]:
+                declared.add(entry["category"])
+                for domain in entry["domains"]:
+                    produced.add(score_script_risk(domain, db)["category"])
+
+        unreachable = sorted(declared - produced)
+        assert not unreachable, (
+            f"categories the database declares that no declared domain produces: {unreachable}"
+        )
+
+    def test_the_most_specific_domain_wins(self):
+        from backend.tools.script_analyzer import _load_risk_db, score_script_risk
+
+        db = _load_risk_db()
+        assert score_script_risk("fonts.googleapis.com", db)["category"] == "fonts"
+        assert score_script_risk("googleapis.com", db)["category"] == "google"

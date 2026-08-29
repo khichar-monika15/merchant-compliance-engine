@@ -38,8 +38,6 @@ def _select_template(policy_type: str, business_type: str) -> str:
         return "privacy_base.md"
     if policy_type == "terms":
         return "terms_base.md"
-    if policy_type == "shipping":
-        return "shipping_ecommerce.md"
     return ""
 
 
@@ -114,9 +112,6 @@ async def run(state: EngineState) -> dict:
             "WEBSITE_URL": website_url,
             "GST_NUMBER": "[Your GSTIN]",
             "JURISDICTION_CITY": "Bangalore",
-            "STANDARD_SHIPPING_COST": "50",
-            "EXPRESS_SHIPPING_COST": "150",
-            "FREE_SHIPPING_THRESHOLD": "500",
         }
 
         generated: list[GeneratedPolicy] = []
@@ -125,12 +120,17 @@ async def run(state: EngineState) -> dict:
             tmpl_file = _select_template(ptype, business_type)
             template = _load_template(tmpl_file)
 
-            if template:
-                content = await _generate_with_llm(ptype, template, company_name, business_type, website_url)
-                if not content:
-                    content = _fill_template(template, base_replacements)
-            else:
-                content = f"# {ptype.title()} Policy\n\n*Policy generation failed, template not found.*"
+            if not template:
+                raise FileNotFoundError(f"policy template {tmpl_file} is missing")
+
+            content = await _generate_with_llm(ptype, template, company_name, business_type, website_url)
+            if not content:
+                content = _fill_template(template, base_replacements)
+
+            # The prompt asks the model to replace every {{placeholder}}, and asking was the only
+            # thing enforcing it. A model that ignored the instruction handed the merchant a
+            # draft containing raw {{COMPANY_NAME}}. Substituting again is idempotent.
+            content = _fill_template(content, base_replacements)
 
             generated.append(GeneratedPolicy(
                 policy_type=ptype,
