@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from functools import lru_cache
 
 from backend import knowledge
@@ -15,6 +16,25 @@ def _grading_bands() -> list[tuple[int, str]]:
     grading = knowledge.pci_check("PCI-004")["grading"]
     bands = [(band["score_min"], name) for name, band in grading.items()]
     return sorted(bands, reverse=True)
+
+
+@lru_cache(maxsize=1)
+def _hsts_min_age() -> int:
+    """The minimum max-age PCI-005 declares, rather than a number typed here.
+
+    The code only checked that max-age was present and non-zero, so `max-age=1` earned full
+    HSTS points against a checklist that asks for a year.
+    """
+    for header in knowledge.pci_check("PCI-005")["scoring"]["headers"]:
+        if header["name"] == "Strict-Transport-Security":
+            match = re.fullmatch(r"max-age >= (\d+)", header["requirement"])
+            if not match:
+                raise ValueError(
+                    f"PCI-005 declares an HSTS requirement this parser cannot apply: "
+                    f"{header['requirement']!r}"
+                )
+            return int(match.group(1))
+    raise ValueError("PCI-005 declares no Strict-Transport-Security header requirement")
 
 
 def _strength_for(score: int) -> str:
@@ -92,10 +112,14 @@ def analyze_security_headers(headers: dict[str, str]) -> dict:
     hsts_raw = lowered.get("strict-transport-security", "")
     hsts = {"present": bool(hsts_raw), "value": hsts_raw, "issues": []}
     if hsts_raw:
-        if "max-age" not in hsts_raw.lower():
+        minimum = _hsts_min_age()
+        age = re.search(r"max-age\s*=\s*(\d+)", hsts_raw.lower())
+        if not age:
             hsts["issues"].append("HSTS missing max-age")
-        elif "max-age=0" in hsts_raw.lower():
-            hsts["issues"].append("HSTS max-age=0 effectively disables it")
+        elif int(age.group(1)) < minimum:
+            hsts["issues"].append(
+                f"HSTS max-age is {age.group(1)}, below the {minimum} the checklist requires"
+            )
         if "includesubdomains" not in hsts_raw.lower():
             hsts["issues"].append("HSTS missing includeSubDomains")
     else:

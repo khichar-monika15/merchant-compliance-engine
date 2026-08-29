@@ -270,20 +270,28 @@ class TestLLMQualityScore:
 
     async def test_falls_back_to_rule_based_score(self, monkeypatch):
         monkeypatch.setattr("backend.agents.compliance_auditor.llm_complete", _empty_llm)
-        score, details = await _llm_quality_score("Lorem ipsum filler.", "Refund Policy", "ecommerce", topics=["timeline", "eligibility"], fallback=2)
+        score, details, issues = await _llm_quality_score("Lorem ipsum filler.", "Refund Policy", "ecommerce", topics=["timeline", "eligibility"], fallback=2)
         assert score == 2
         assert "unavailable" in details.lower()
+        assert issues == []
 
     async def test_llm_score_wins_when_available(self, monkeypatch):
         monkeypatch.setattr("backend.agents.compliance_auditor.llm_complete", _scoring_llm)
-        score, details = await _llm_quality_score("A thorough refund policy.", "Refund Policy", "ecommerce", topics=["timeline", "eligibility"], fallback=2)
+        score, details, _ = await _llm_quality_score("A thorough refund policy.", "Refund Policy", "ecommerce", topics=["timeline", "eligibility"], fallback=2)
         assert score == 9
         assert details == "comprehensive"
 
     async def test_bare_code_fence_is_stripped(self, monkeypatch):
         monkeypatch.setattr("backend.agents.compliance_auditor.llm_complete", _bare_fence_llm)
-        score, _ = await _llm_quality_score("Some policy text.", "Refund Policy", "ecommerce", topics=["timeline", "eligibility"], fallback=2)
+        score, _, _ = await _llm_quality_score("Some policy text.", "Refund Policy", "ecommerce", topics=["timeline", "eligibility"], fallback=2)
         assert score == 7
+
+    async def test_model_issues_reach_the_report(self, monkeypatch):
+        """The prompt asks for an issues array and the parser used to drop it on the floor."""
+        monkeypatch.setattr("backend.agents.compliance_auditor.llm_complete", _issues_llm)
+        score, _, issues = await _llm_quality_score("Thin policy.", "Refund Policy", "ecommerce", topics=["timeline"], fallback=3)
+        assert score == 4
+        assert issues == ["No refund timeline stated", "No process for damaged goods"]
 
 
 async def _empty_llm(prompt: str, max_tokens: int = 512) -> str:
@@ -292,6 +300,11 @@ async def _empty_llm(prompt: str, max_tokens: int = 512) -> str:
 
 async def _scoring_llm(prompt: str, max_tokens: int = 512) -> str:
     return '{"score": 9, "issues": [], "details": "comprehensive"}'
+
+
+async def _issues_llm(prompt: str, max_tokens: int = 512) -> str:
+    return ('{"score": 4, "issues": ["No refund timeline stated", '
+            '"No process for damaged goods"], "details": "thin"}')
 
 
 async def _bare_fence_llm(prompt: str, max_tokens: int = 512) -> str:

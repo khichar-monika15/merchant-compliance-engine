@@ -189,8 +189,13 @@ def _expected_topics(check_def: dict, business_type: str) -> list[str]:
 
 async def _llm_quality_score(
     policy_text: str, policy_type: str, business_type: str, topics: list[str], fallback: int
-) -> tuple[int, str]:
-    """Score policy quality 0-10 with the LLM, falling back to the rule-based score."""
+) -> tuple[int, str, list[str]]:
+    """Score policy quality 0-10 with the LLM, falling back to the rule-based score.
+
+    Returns the model's itemised issues as well. The prompt has always asked for them and the
+    parser read only score and details, so the merchant was told a policy was inadequate
+    without being told which topics it was missing.
+    """
     expected = ", ".join(topics) if topics else "the topics a policy of this kind should cover"
     prompt = f"""You are a compliance analyst evaluating merchant policies for RBI Payment Aggregator guidelines.
 
@@ -215,12 +220,13 @@ Respond in JSON only:
     try:
         text = await llm_complete(prompt, max_tokens=256)
         if not text:
-            return fallback, "LLM scoring unavailable, rule-based score used"
+            return fallback, "LLM scoring unavailable, rule-based score used", []
         text = _strip_code_fence(text)
         data = json.loads(text)
-        return int(data.get("score", fallback)), data.get("details", "")
+        issues = [str(i) for i in data.get("issues", []) if str(i).strip()]
+        return int(data.get("score", fallback)), data.get("details", ""), issues
     except Exception as e:
-        return fallback, f"LLM scoring unavailable ({type(e).__name__}), rule-based score used"
+        return fallback, f"LLM scoring unavailable ({type(e).__name__}), rule-based score used", []
 
 
 def _strip_code_fence(text: str) -> str:
@@ -273,14 +279,15 @@ async def run(state: EngineState) -> dict:
             llm_issues: list[str] = []
             if found:
                 business_type = state.merchant_input.business_type or "unknown"
-                quality_score, details = await _llm_quality_score(
+                quality_score, details, model_issues = await _llm_quality_score(
                     _html_to_text(page_html),
                     check_def["name"],
                     business_type,
                     topics=_expected_topics(check_def, business_type),
                     fallback=quality_score,
                 )
-                if quality_score < 5:
+                llm_issues.extend(model_issues)
+                if quality_score < 5 and not model_issues:
                     llm_issues.append(f"Policy content appears inadequate: {details}")
 
             return ComplianceCheck(
