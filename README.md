@@ -100,6 +100,11 @@ are what the engine actually produces when the sites are served locally.
 Each site carries a different stack signature, so the integration advisor recommends a different
 Razorpay path for each: the Shopify app, Standard Checkout for Next.js, and so on.
 
+The table shows the no-credentials numbers, so a reviewer cloning without an `.env` sees exactly
+these. With an LLM configured the totals move slightly — 19 / 29 / 58 / 80 — because the model
+refines the policy quality scores. The grades do not change, and ground truth is asserted on both
+paths.
+
 Serve them and run the full comparison against ground truth:
 
 ```bash

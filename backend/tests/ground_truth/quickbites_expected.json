@@ -12,7 +12,7 @@
   "expected_stack": "vue_nuxt",
   "compliance_expected": {
     "refund_policy": {"found": false},
-    "privacy_policy": {"found": true, "quality_score_min": 2, "quality_score_max": 4},
+    "privacy_policy": {"found": true, "quality_score_min": 2, "quality_score_max": 5},
     "terms_conditions": {"found": false},
     "contact_info": {"found": true, "quality_score_min": 6, "quality_score_max": 8},
     "gst_display": {"found": false}

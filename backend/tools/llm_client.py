@@ -7,6 +7,10 @@ from backend.config import get_settings
 
 _TIMEOUT_SECONDS = 60.0
 
+# Compliance scoring has to be reproducible: the same site must score the same on two runs.
+# At the providers' default temperature a thin policy scored 3, then 5, then 6.
+_TEMPERATURE = 0
+
 
 async def llm_complete(prompt: str, max_tokens: int = 512) -> str:
     """Send a single-turn prompt and return the text response. Empty string when unconfigured."""
@@ -44,6 +48,7 @@ async def _openai_complete(prompt: str, max_tokens: int) -> str:
     resp = await _openai_client().chat.completions.create(
         model=get_settings().llm_model,
         max_tokens=max_tokens,
+        temperature=_TEMPERATURE,
         messages=[{"role": "user", "content": prompt}],
     )
     return (resp.choices[0].message.content or "").strip()
@@ -53,6 +58,7 @@ async def _anthropic_complete(prompt: str, max_tokens: int) -> str:
     resp = await _anthropic_client().messages.create(
         model=get_settings().anthropic_model,
         max_tokens=max_tokens,
+        temperature=_TEMPERATURE,
         messages=[{"role": "user", "content": prompt}],
     )
     text = next((b.text for b in resp.content if getattr(b, "type", None) == "text"), "")

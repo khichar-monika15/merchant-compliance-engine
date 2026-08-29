@@ -1,6 +1,11 @@
 """
 Run all 4 test sites through the MCIE engine and validate against ground truth.
 
+The bounds in `ground_truth/*.json` are set to hold on BOTH paths — rule-based scoring with no
+credentials, and LLM-refined scoring with them. Both are verified; the LLM moves individual policy
+quality scores by a point or two and the totals with them, but no grade changes. Widen a bound
+only after measuring both ways, never to make a run go green.
+
 Serve the sites first, one per terminal:
     npx serve test-sites/freshkart-india      -p 4001
     npx serve test-sites/quickbites-delivery  -p 4002
