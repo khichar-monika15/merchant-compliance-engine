@@ -141,24 +141,37 @@ async def knowledge_base():
     cannot drift from the behaviour the way a hand written page would.
     """
     from backend import knowledge
-    from backend.agents.report_generator import _GRADE_THRESHOLDS, _WEIGHTS
+    from backend.agents.report_generator import _GRADE_THRESHOLDS, _SCORE_LABELS, _WEIGHTS
 
     rbi, pci = knowledge.rbi_document(), knowledge.pci_document()
+    scripts, stacks = knowledge.script_risk_document(), knowledge.tech_stack_document()
     return {
-        "rbi": {"version": rbi["version"], "source": rbi["source"], "checks": rbi["checks"]},
+        "rbi": {
+            "version": rbi["version"],
+            "source": rbi["source"],
+            "checks": knowledge.rbi_checks(),
+        },
         "pci": {
             "version": pci["version"],
             "source": pci["source"],
-            "checks": pci["checks"],
+            "checks": knowledge.pci_checks(),
             "payment_page_patterns": knowledge.payment_page_patterns(),
         },
+        # PCI-003 classifies third-party scripts by domain. Serving the taxonomy is what makes
+        # that check inspectable rather than a card with a severity badge and nothing behind it.
+        "script_risk": {
+            "version": scripts["version"],
+            "last_updated": scripts["last_updated"],
+            "notes": scripts["notes"],
+            "low_risk": scripts["low_risk"],
+            "medium_risk": scripts["medium_risk"],
+            "high_risk_indicators": scripts["high_risk_indicators"],
+        },
+        "stacks": stacks["stacks"],
         "scoring": {
-            "weights": {
-                "RBI Compliance": _WEIGHTS["rbi_compliance"],
-                "KYC Consistency": _WEIGHTS["kyc"],
-                "PCI DSS": _WEIGHTS["pci"],
-                "Integration": _WEIGHTS["integration"],
-            },
+            # Labels come from the scorer so the published weights cannot be attached to
+            # different names than the ones the report uses.
+            "weights": {_SCORE_LABELS[key]: weight for key, weight in _WEIGHTS.items()},
             "grades": [{"grade": g, "min_score": t} for t, g in _GRADE_THRESHOLDS],
         },
     }

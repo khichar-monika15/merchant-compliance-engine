@@ -1,21 +1,12 @@
-import json
 import re
 from functools import partial
-from pathlib import Path
 
 from rapidfuzz import fuzz as rapidfuzz_fuzz
 
-_RBI_DB_PATH = Path(__file__).parent.parent / "knowledge" / "rbi_mdd_checklist.json"
+from backend import knowledge
 
-
-def _rbi_006() -> dict:
-    """RBI-006 defines how business names are normalized and how close counts as a match."""
-    with _RBI_DB_PATH.open() as f:
-        checks = json.load(f)["checks"]
-    return next(c for c in checks if c["id"] == "RBI-006")["quality_criteria"]
-
-
-_CRITERIA = _rbi_006()
+# RBI-006 defines how business names are normalized and how close counts as a match.
+_CRITERIA = knowledge.quality_criteria("RBI-006")
 
 # (compiled pattern, replacement)
 _NORMALIZATION_RULES: list[tuple[re.Pattern, str]] = [

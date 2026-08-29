@@ -21,7 +21,13 @@ def _load_stacks_db() -> dict:
 
 def _pick_primary_stack(tech_signals: dict[str, list[str]]) -> str:
     """Return the highest-confidence detected stack."""
-    priority = ["shopify", "woocommerce", "nextjs", "django", "laravel", "react", "vue_nuxt", "static_html"]
+    # WooCommerce before WordPress: a WooCommerce site is also a WordPress site, and the plugin
+    # is the better answer. WordPress was missing from this list entirely, so the one stack that
+    # maps to a Payment Button could only win when it was the sole detection.
+    priority = [
+        "shopify", "woocommerce", "wordpress", "nextjs", "django",
+        "laravel", "react", "vue_nuxt", "static_html",
+    ]
     for stack in priority:
         if stack in tech_signals:
             return stack
@@ -76,6 +82,8 @@ async def run(state: EngineState) -> dict:
         result = IntegrationResult(
             detected_stack=tech_signals,  # {stack_name: [evidence_strings]} maps to Record<string, string[]>
             recommended_product=rec.get("product", "Razorpay Standard Checkout"),
+            recommendation_reason=rec.get("reason", ""),
+            docs_url=rec.get("docs_url", ""),
             integration_method=rec.get("integration_method", "standard_checkout"),
             starter_code=starter_code,
             starter_code_language=lang,

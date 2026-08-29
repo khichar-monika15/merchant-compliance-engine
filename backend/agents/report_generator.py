@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from backend import knowledge
 from backend.agents._audit import failure
 from backend.models.schemas import (
     AuditLogEntry,
@@ -12,12 +13,20 @@ from backend.models.schemas import (
     Severity,
 )
 
-# Scoring weights
+# Scoring weights, and the label each one carries into the report. The knowledge endpoint
+# publishes these, so the label lives here rather than being re-typed there.
 _WEIGHTS = {
     "rbi_compliance": 0.40,
     "kyc": 0.25,
     "pci": 0.20,
     "integration": 0.15,
+}
+
+_SCORE_LABELS = {
+    "rbi_compliance": "RBI Compliance",
+    "kyc": "KYC Consistency",
+    "pci": "PCI DSS",
+    "integration": "Integration",
 }
 
 _GRADE_THRESHOLDS = [(90, "A"), (75, "B"), (50, "C"), (25, "D"), (0, "F")]
@@ -117,17 +126,19 @@ def _pci_gaps(pci) -> tuple[list[GapItem], list[GapItem], list[GapItem]]:
     if pci is None:
         return critical, warnings, info
 
-    # Severity follows the knowledge base: PCI-001/002/004 are critical, PCI-005 (header suite) is a warning
-    for issue in pci.critical_issues:
-        sev = Severity.CRITICAL if any(kw in issue.lower() for kw in ["csp", "sri", "6.4.3"]) else Severity.WARNING
+    # Severity is the one the check declares, carried on the issue. It used to be guessed here
+    # by substring-matching the message for "csp", "sri" and "6.4.3", under a comment that
+    # claimed it followed the knowledge base.
+    for issue in pci.issues:
+        check = knowledge.pci_check(issue.check_id)
         gap = GapItem(
-            title=f"PCI: {issue[:80]}",
-            description=issue,
-            severity=sev,
+            title=f"PCI: {issue.message[:80]}",
+            description=issue.message,
+            severity=issue.severity,
             category="pci",
-            fix_suggestion="See PCI DSS v4.0.1 Requirements 6.4.3 and 11.6.1",
+            fix_suggestion=f"See PCI DSS v4.0.1 Requirement {check['requirement']}",
         )
-        (critical if sev == Severity.CRITICAL else warnings).append(gap)
+        (critical if issue.severity == Severity.CRITICAL else warnings).append(gap)
 
     return critical, warnings, info
 
@@ -161,11 +172,15 @@ async def run(state: EngineState) -> dict:
 
         # Weighted score. The breakdown ships with the report so the UI renders the numbers
         # the backend actually used instead of recomputing them and drifting.
+        component_scores = {
+            "rbi_compliance": rbi_score,
+            "kyc": kyc_score,
+            "pci": pci_score,
+            "integration": integration_score,
+        }
         breakdown = [
-            ScoreComponent(label="RBI Compliance", score=rbi_score, weight=_WEIGHTS["rbi_compliance"]),
-            ScoreComponent(label="KYC Consistency", score=kyc_score, weight=_WEIGHTS["kyc"]),
-            ScoreComponent(label="PCI DSS", score=pci_score, weight=_WEIGHTS["pci"]),
-            ScoreComponent(label="Integration", score=integration_score, weight=_WEIGHTS["integration"]),
+            ScoreComponent(label=_SCORE_LABELS[key], score=component_scores[key], weight=weight)
+            for key, weight in _WEIGHTS.items()
         ]
         overall = int(sum(c.score * c.weight for c in breakdown))
         grade = _score_to_grade(overall)

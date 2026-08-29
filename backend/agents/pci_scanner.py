@@ -1,61 +1,68 @@
 from __future__ import annotations
 
-import json
 import re
 from datetime import datetime, timezone
-from pathlib import Path
 from urllib.parse import urlparse
 
 from backend import knowledge
 from backend.agents._audit import failure
-from backend.models.schemas import AuditLogEntry, EngineState, PCIResult
+from backend.models.schemas import AuditLogEntry, EngineState, PCIIssue, PCIResult, Severity
 from backend.tools.csp_parser import analyze_security_headers
 
-_PCI_DB_PATH = Path(__file__).parent.parent / "knowledge" / "pci_dss_surface_checks.json"
-
-
-def _load_pci_db() -> dict:
-    with _PCI_DB_PATH.open() as f:
-        return json.load(f)
-
-
-_PCI_DB = _load_pci_db()
-
-
-def _check(check_id: str) -> dict:
-    return next(c for c in _PCI_DB["checks"] if c["id"] == check_id)
-
-
-_SCRIPT_INVENTORY = _check("PCI-001")
-_SRI = _check("PCI-002")["scoring"]
-_CSP = _check("PCI-004")["scoring"]
-_HEADER_SUITE = _check("PCI-005")["scoring"]
+_SCRIPT_INVENTORY = knowledge.pci_check("PCI-001")
+_SRI = knowledge.pci_check("PCI-002")["scoring"]
+_CSP = knowledge.pci_check("PCI-004")["scoring"]
+_HEADER_SUITE = knowledge.pci_check("PCI-005")["scoring"]
 
 _HEADER_POINTS = {h["name"]: h["points"] for h in _HEADER_SUITE["headers"]}
 
-# PCI-001 deducts by third-party script count; the thresholds live in the condition strings
+# PCI-001 deducts by third-party script count; the thresholds live in the condition strings.
+# An unrecognised condition raises rather than being skipped: two SRI deductions were declared
+# here, silently dropped by this parser, and published on the checks page as live rules.
 _SCRIPT_COUNT_TIERS: list[tuple[int, int, str]] = []
 for _d in _SCRIPT_INVENTORY["scoring"]["deductions"]:
     _m = re.fullmatch(r"third_party_scripts > (\d+)", _d["condition"])
-    if _m:
-        _SCRIPT_COUNT_TIERS.append((int(_m.group(1)), _d["points"], _d["reason"]))
+    if not _m:
+        raise ValueError(
+            f"PCI-001 declares a deduction this scorer cannot apply: {_d['condition']!r}. "
+            "Publishing a rule the engine ignores is worse than not declaring it."
+        )
+    _SCRIPT_COUNT_TIERS.append((int(_m.group(1)), _d["points"], _d["reason"]))
 _SCRIPT_COUNT_TIERS.sort(reverse=True)
 
+# PCI-002: payment provider scripts are versioned dynamically and cannot carry an integrity
+# hash, so the checklist exempts them. Without this the engine docks a merchant for correctly
+# integrating Razorpay.
+_SRI_EXEMPT_HOSTS = tuple(knowledge.pci_check("PCI-002")["known_exemptions"])
 
-def _score_headers(security_analysis: dict) -> tuple[int, list[str]]:
-    """Score CSP (PCI-004) and the security header suite (PCI-005) out of 50."""
+
+def _is_sri_exempt(src: str) -> bool:
+    host = urlparse(src).netloc.lower()
+    return any(host == exempt or host.endswith("." + exempt) for exempt in _SRI_EXEMPT_HOSTS)
+
+
+def _score_headers(security_analysis: dict) -> tuple[int, list[tuple[str, str]]]:
+    """Score CSP (PCI-004) and the security header suite (PCI-005) out of 50.
+
+    Issues carry the check id that produced them so the declared severity can be applied.
+    """
     score = _CSP["max_points"] + _HEADER_SUITE["max_points"]
-    issues: list[str] = []
+    issues: list[tuple[str, str]] = []
 
     csp = security_analysis.get("csp", {})
     if not csp.get("present"):
         score -= _CSP["no_csp_deduction"]
-        issues.append("CSP header missing (PCI 11.6.1)")
+        issues.append(("PCI-004", "CSP header missing (PCI 11.6.1)"))
     elif csp.get("strength") == "weak":
         score -= _CSP["weak_csp_deduction"]
-        issues.append("CSP is present but weak")
+        issues.append(("PCI-004", "CSP is present but weak"))
     elif csp.get("strength") == "moderate":
         score -= _CSP["moderate_csp_deduction"]
+        issues.append(("PCI-004", "CSP is present but only moderately restrictive"))
+    else:
+        # Declared as 0. Applying it explicitly keeps every band on one code path, so changing
+        # the value in the checklist changes the score.
+        score -= _CSP["strong_csp_deduction"]
 
     suite = [
         ("hsts", "Strict-Transport-Security", "HSTS missing, HTTPS not enforced"),
@@ -66,28 +73,32 @@ def _score_headers(security_analysis: dict) -> tuple[int, list[str]]:
     for key, header_name, message in suite:
         if not security_analysis.get(key, {}).get("present"):
             score -= _HEADER_POINTS[header_name]
-            issues.append(message)
+            issues.append(("PCI-005", message))
 
     return max(0, score), issues
 
 
-def _score_scripts(third_party_count: int, without_sri: int) -> tuple[int, list[str]]:
+def _score_scripts(third_party_count: int, without_sri: int) -> tuple[int, list[tuple[str, str]]]:
     """Score script inventory (PCI-001) and SRI coverage (PCI-002) out of 50."""
     score = _SCRIPT_INVENTORY["scoring"]["max_points"] + _SRI["max_points"]
-    issues: list[str] = []
+    issues: list[tuple[str, str]] = []
 
     for threshold, points, reason in _SCRIPT_COUNT_TIERS:
         if third_party_count > threshold:
             score -= points
-            issues.append(
+            issues.append((
+                "PCI-001",
                 f"{third_party_count} third-party scripts loaded, {reason} "
-                f"(PCI {_SCRIPT_INVENTORY['requirement']})"
-            )
+                f"(PCI {_SCRIPT_INVENTORY['requirement']})",
+            ))
             break
 
     if without_sri > 0:
         score -= min(_SRI["per_script_without_sri_deduction"] * without_sri, _SRI["max_deduction"])
-        issues.append(f"{without_sri} third-party scripts lack SRI (PCI 6.4.3 integrity violation risk)")
+        issues.append((
+            "PCI-002",
+            f"{without_sri} third-party scripts lack SRI (PCI 6.4.3 integrity violation risk)",
+        ))
 
     return max(0, score), issues
 
@@ -132,7 +143,7 @@ async def run(state: EngineState) -> dict:
 
         scripts = crawl.scripts_found
         third_party = [s for s in scripts if not s.is_first_party and not s.is_inline]
-        without_sri = [s for s in third_party if not s.has_sri]
+        without_sri = [s for s in third_party if not s.has_sri and not _is_sri_exempt(s.src)]
 
         graded_url, graded_headers = _headers_to_grade(crawl, str(state.merchant_input.website_url))
         security_analysis = analyze_security_headers(graded_headers)
@@ -140,6 +151,15 @@ async def run(state: EngineState) -> dict:
         header_score, header_issues = _score_headers(security_analysis)
         script_score, script_issues = _score_scripts(len(third_party), len(without_sri))
         total_score = min(100, header_score + script_score)
+
+        issues = [
+            PCIIssue(
+                check_id=check_id,
+                message=message,
+                severity=Severity(knowledge.pci_check(check_id)["severity"]),
+            )
+            for check_id, message in header_issues + script_issues
+        ]
 
         pci_result = PCIResult(
             scripts_inventory=scripts,
@@ -152,7 +172,8 @@ async def run(state: EngineState) -> dict:
             x_content_type=security_analysis.get("x_content_type", {}),
             referrer_policy=security_analysis.get("referrer_policy", {}),
             security_score=total_score,
-            critical_issues=header_issues + script_issues,
+            issues=issues,
+            critical_issues=[issue.message for issue in issues],
         )
 
         duration_ms = (datetime.now(timezone.utc) - t0).total_seconds() * 1000

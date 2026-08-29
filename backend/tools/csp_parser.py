@@ -1,5 +1,28 @@
 from __future__ import annotations
 
+from functools import lru_cache
+
+from backend import knowledge
+
+
+@lru_cache(maxsize=1)
+def _grading_bands() -> list[tuple[int, str]]:
+    """CSP strength bands, highest first, from PCI-004 rather than hardcoded here.
+
+    The thresholds existed in both places and happened to agree. That is what the crawler's
+    URL patterns looked like before one of them lost `/money-back`.
+    """
+    grading = knowledge.pci_check("PCI-004")["grading"]
+    bands = [(band["score_min"], name) for name, band in grading.items()]
+    return sorted(bands, reverse=True)
+
+
+def _strength_for(score: int) -> str:
+    for minimum, name in _grading_bands():
+        if score >= minimum:
+            return name
+    return "none"
+
 
 def parse_csp(csp_string: str) -> dict[str, list[str]]:
     """Parse a Content-Security-Policy header into {directive: [values]}."""
@@ -45,14 +68,7 @@ def grade_csp(parsed: dict[str, list[str]]) -> dict:
         score -= 5
 
     score = max(0, score)
-    if score >= 80:
-        strength = "strong"
-    elif score >= 50:
-        strength = "moderate"
-    elif score > 0:
-        strength = "weak"
-    else:
-        strength = "none"
+    strength = _strength_for(score)
 
     return {
         "present": True,

@@ -119,13 +119,13 @@ class TestPCIScoring:
         headers = {k: v for k, v in _PERFECT_HEADERS.items() if k != "referrer-policy"}
         score, issues = _score_headers(analyze_security_headers(headers))
         assert score == 44
-        assert any("Referrer-Policy" in i for i in issues)
+        assert ("PCI-005", "Referrer-Policy missing") in issues
 
     def test_missing_csp_costs_20(self):
         headers = {k: v for k, v in _PERFECT_HEADERS.items() if k != "content-security-policy"}
         score, issues = _score_headers(analyze_security_headers(headers))
         assert score == 30
-        assert any("CSP" in i for i in issues)
+        assert any(cid == "PCI-004" and "CSP" in msg for cid, msg in issues)
 
     def test_no_headers_at_all(self):
         score, issues = _score_headers(analyze_security_headers({}))
@@ -135,7 +135,8 @@ class TestPCIScoring:
     def test_scripts_without_sri_deducted_per_script(self):
         score, issues = _score_scripts(third_party_count=4, without_sri=4)
         assert score == 38  # 50 - (3 * 4)
-        assert any("SRI" in i for i in issues)
+        # The check id matters: SRI is PCI-002, and its severity drives the gap in the report.
+        assert any(cid == "PCI-002" and "SRI" in msg for cid, msg in issues)
 
     def test_script_deduction_is_capped(self):
         score, _ = _score_scripts(third_party_count=30, without_sri=30)

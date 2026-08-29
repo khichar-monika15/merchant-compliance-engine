@@ -77,6 +77,19 @@ class ComplianceResult(BaseModel):
     overall_score: int = 0
 
 
+class PCIIssue(BaseModel):
+    """A PCI finding tagged with the check that produced it.
+
+    The severity used to be guessed in the report generator by substring-matching the message
+    text for "csp", "sri" and "6.4.3", under a comment claiming it followed the knowledge base.
+    Carrying the check id means the declared severity is the one that gets used.
+    """
+
+    check_id: str
+    message: str
+    severity: Severity
+
+
 class PCIResult(BaseModel):
     scripts_inventory: list[ScriptInfo] = []
     total_scripts: int = 0
@@ -88,6 +101,9 @@ class PCIResult(BaseModel):
     x_content_type: dict = {}
     referrer_policy: dict = {}
     security_score: int = 0
+    issues: list[PCIIssue] = []
+    # The message text of `issues`, kept so the report renders a plain list. Derived, not a
+    # second source of truth.
     critical_issues: list[str] = []
 
 
@@ -123,6 +139,11 @@ class PolicyGenResult(BaseModel):
 class IntegrationResult(BaseModel):
     detected_stack: dict = {}
     recommended_product: str = ""
+    # Why this product, and where to read about it. Both are declared per stack in
+    # tech_stack_signatures.json and used to be dropped here, so the merchant was told what to
+    # integrate but never why or where the documentation was.
+    recommendation_reason: str = ""
+    docs_url: str = ""
     integration_method: str = ""
     starter_code: str = ""
     starter_code_language: str = ""

@@ -4,7 +4,6 @@ import asyncio
 import json
 import re
 from datetime import datetime, timezone
-from pathlib import Path
 
 from backend import knowledge
 from backend.tools.llm_client import llm_complete
@@ -16,8 +15,6 @@ from backend.models.schemas import (
     EngineState,
     Severity,
 )
-
-_RBI_DB_PATH = Path(__file__).parent.parent / "knowledge" / "rbi_mdd_checklist.json"
 
 # Every pattern below is declared in the checklist rather than written here, so the rules the
 # engine applies and the rules the checks page publishes cannot diverge.
@@ -32,22 +29,20 @@ _PHONE_LEADING = _CONTACT_ELEMENTS["phone"]["allowed_leading_digits"]
 _EMAIL_PATTERN = re.compile(_CONTACT_ELEMENTS["email"]["pattern"])
 
 
-def _load_rbi_db() -> dict:
-    with _RBI_DB_PATH.open() as f:
-        return json.load(f)
-
-
 def _rbi_red_flag_gstins() -> set[str]:
-    check = next((c for c in _load_rbi_db()["checks"] if c["id"] == "RBI-005"), {})
-    return set(check.get("quality_criteria", {}).get("red_flags", []))
+    return set(knowledge.quality_criteria("RBI-005").get("red_flags", []))
 
 
 _RBI_RED_FLAG_GSTINS = _rbi_red_flag_gstins()
 
 
+# Each check declares how it is found. page_search means the crawler looks for a dedicated page;
+# RBI-004 and RBI-005 declare content_search and are scanned out of the whole site below.
+_PAGE_SEARCH_CHECKS = [c for c in knowledge.rbi_checks() if c["detection_strategy"] == "page_search"]
+
+
 def _contact_red_flags() -> set[str]:
-    check = next((c for c in _load_rbi_db()["checks"] if c["id"] == "RBI-004"), {})
-    return {rf.lower() for rf in check.get("quality_criteria", {}).get("red_flags", [])}
+    return {rf.lower() for rf in knowledge.quality_criteria("RBI-004").get("red_flags", [])}
 
 
 _CONTACT_RED_FLAGS = _contact_red_flags()
@@ -241,16 +236,13 @@ async def run(state: EngineState) -> dict:
     t0 = datetime.now(timezone.utc)
 
     try:
-        rbi_db = _load_rbi_db()
         crawl = state.crawl_result
         pages = crawl.pages_found if crawl else {}
         identified = crawl.identified_pages if crawl else {}
         all_html = " ".join(pages.values())
 
         async def _score_policy(check_id: str, policy_type: str) -> ComplianceCheck:
-            check_def = next((c for c in rbi_db["checks"] if c["id"] == check_id), None)
-            if not check_def:
-                return ComplianceCheck(name=policy_type, check_id=check_id)
+            check_def = knowledge.rbi_check(check_id)
 
             # The crawler already matched this URL by path or link text, so the page exists —
             # only its quality is in question. A 40-word stub is "inadequate", not "missing".
@@ -312,45 +304,46 @@ async def run(state: EngineState) -> dict:
                     contact_url = url
                     break
 
+        contact_def = knowledge.rbi_check("RBI-004")
         contact_found, contact_issues = _check_contact_page(contact_html or all_html)
         contact_check = ComplianceCheck(
-            name="Contact Information",
-            check_id="RBI-004",
+            name=contact_def["name"],
+            check_id=contact_def["id"],
             found=contact_found,
             url=contact_url,
             quality_score=max(0, 10 - len(contact_issues) * 3),
-            severity=Severity.CRITICAL,
+            severity=Severity(contact_def["severity"]),
             issues=contact_issues,
         )
 
         # GST display check
+        gst_def = knowledge.rbi_check("RBI-005")
         gst_found, gst_number = _check_gst_display(all_html)
         gst_check = ComplianceCheck(
-            name="GST Display",
-            check_id="RBI-005",
+            name=gst_def["name"],
+            check_id=gst_def["id"],
             found=gst_found,
             quality_score=10 if gst_found else 0,
-            severity=Severity.WARNING,
+            severity=Severity(gst_def["severity"]),
             issues=[] if gst_found else ["GST registration number not displayed on website"],
             details=gst_number,
         )
 
-        # Run policy checks concurrently — one failing check must not abort the others
+        # Run policy checks concurrently — one failing check must not abort the others.
+        # Which checks belong here is declared per check as detection_strategy, not listed here,
+        # so adding a page-searched check to the checklist adds it to this run.
         results = await asyncio.gather(
-            _score_policy("RBI-001", "refund"),
-            _score_policy("RBI-002", "privacy"),
-            _score_policy("RBI-003", "terms"),
+            *(_score_policy(c["id"], knowledge.page_type(c["id"])) for c in _PAGE_SEARCH_CHECKS),
             return_exceptions=True,
         )
         refund_check, privacy_check, terms_check = [
             r if isinstance(r, ComplianceCheck) else ComplianceCheck(
-                name=name, check_id=cid, issues=[f"Check failed: {r}"], severity=Severity.CRITICAL
+                name=check["name"],
+                check_id=check["id"],
+                issues=[f"Check failed: {r}"],
+                severity=Severity(check["severity"]),
             )
-            for r, name, cid in zip(
-                results,
-                ("Refund Policy", "Privacy Policy", "Terms & Conditions"),
-                ("RBI-001", "RBI-002", "RBI-003"),
-            )
+            for r, check in zip(results, _PAGE_SEARCH_CHECKS)
         ]
 
         business_category = _detect_business_category(all_html)
