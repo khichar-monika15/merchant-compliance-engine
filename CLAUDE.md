@@ -41,10 +41,13 @@ uv run python -m backend.tests.validate_ground_truth
 
 Serve on these ports — `validate_ground_truth.py` and the docs all assume them.
 
-- `test-sites/freshkart-india/` — port 4001 — 24 / Grade F (every major gap planted)
-- `test-sites/quickbites-delivery/` — port 4002 — 36 / Grade D (KYC mismatches, copy-paste policy)
-- `test-sites/clouddesk-saas/` — port 4003 — 52 / Grade C (thin policies)
-- `test-sites/artisan-weaves/` — port 4004 — 85 / Grade B (nearly ready)
+- `test-sites/freshkart-india/` — port 4001 — 19 / Grade F — static HTML (every major gap planted)
+- `test-sites/quickbites-delivery/` — port 4002 — 28 / Grade D — Nuxt (KYC mismatches, thin policy)
+- `test-sites/clouddesk-saas/` — port 4003 — 55 / Grade C — Next.js (thin policies)
+- `test-sites/artisan-weaves/` — port 4004 — 81 / Grade B — Shopify (nearly ready)
+
+Each site carries a distinct stack signature so the integration advisor is exercised across four
+different Razorpay recommendations rather than returning the same one four times.
 
 Served locally the `vercel.json` security headers do not apply, so all four report their headers
 as missing. Ground truth encodes the local-serving values.

@@ -24,8 +24,8 @@ Partially compliant SaaS customer support platform. Has some policies but they'r
 Served locally on port 4003:
 
 - Grade: C
-- Score: 52 (expected range 50-68)
-- RBI: 20 — refund and privacy exist but are 40-60 word stubs and score as inadequate,
+- Score: 55 (expected range 50-62)
+- RBI: 26 — refund (2/10) and privacy (1/10) exist but are 40-60 word stubs,
   not missing; T&C and GSTIN are absent
 - PCI: 46 — 3 third-party scripts, none with SRI
 - KYC: overall_consistent = true

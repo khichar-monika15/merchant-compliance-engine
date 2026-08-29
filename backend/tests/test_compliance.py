@@ -43,6 +43,37 @@ class TestOverallScore:
         assert _overall_score(checks, gst_found=True) - _overall_score(checks, gst_found=False) == 20
 
 
+class TestContactRedFlags:
+    """RBI-004 lists red flags for a contact page; nothing read them until now.
+
+    RBI's Merchant Due Diligence expects an Indian place of business, so a merchant showing a
+    New York address or a placeholder email is a real onboarding signal, not a pass.
+    """
+
+    def test_foreign_address_is_flagged(self):
+        html = """
+        <p>Address: 350 Fifth Avenue, New York, NY 10118</p>
+        <p>Phone: +91 9876543210</p>
+        <p>Email: help@quickbites.in</p>
+        """
+        _, issues = _check_contact_page(html)
+        assert any("india" in i.lower() or "outside" in i.lower() for i in issues), issues
+
+    def test_placeholder_email_is_flagged(self):
+        html = "<p>Email: test@test.com</p><p>1/4 MG Road, Bangalore 560001</p><p>+91 9876543210</p>"
+        _, issues = _check_contact_page(html)
+        assert any("placeholder" in i.lower() for i in issues), issues
+
+    def test_genuine_indian_contact_page_has_no_red_flag(self):
+        html = """
+        <p>Address: 1/4 MG Road, Bangalore 560001, Karnataka</p>
+        <p>Phone: +91 9876543210</p>
+        <p>Email: support@artisanweaves.in</p>
+        """
+        _, issues = _check_contact_page(html)
+        assert issues == []
+
+
 class TestContactPageChecker:
     def test_complete_contact_info(self):
         html = """

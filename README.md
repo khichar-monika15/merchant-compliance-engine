@@ -18,7 +18,7 @@ uv sync
 uv run playwright install chromium
 
 cp .env.example .env      # see Configuration below
-uv run pytest backend/tests/            # 116 tests
+uv run pytest backend/tests/            # 177 tests, no credentials needed
 uv run uvicorn backend.main:app --reload --port 8000
 cd frontend && npm install && npm run dev   # http://localhost:5173
 ```
@@ -45,9 +45,9 @@ LangGraph 0.2's fragile fan-out/join convergence.
 graph LR
   A[validate_input] --> B[crawl_website]
   B -->|pages found| C[parallel_analysis]
-  B -->|crawl failed| F[generate_report]
+  B -->|site unreachable| G([END])
   C -->|gaps found| E[generate_policies]
-  C -->|no gaps| F
+  C -->|no gaps| F[generate_report]
   E --> F
   F --> G([END])
 
@@ -90,12 +90,15 @@ Interactive docs at `http://localhost:8000/docs`.
 Four synthetic merchant sites with deliberately planted gaps, for a repeatable demo. Scores below
 are what the engine actually produces when the sites are served locally.
 
-| Site | Port | Score | Grade | Planted gaps |
-|---|---|---|---|---|
-| FreshKart India | 4001 | 24 | F | No policy pages, 18 third-party scripts (17 without SRI), GSTIN only in an HTML comment, KYC mismatches |
-| QuickBites Delivery | 4002 | 36 | D | Copy-paste privacy policy naming another company, no refund or T&C, US address, KYC mismatches |
-| CloudDesk SaaS | 4003 | 52 | C | Refund and privacy pages are 40-60 word stubs, no T&C, no GSTIN |
-| Artisan Weaves | 4004 | 85 | B | Nearly compliant — all policies substantive, GSTIN shown, KYC clean; missing a CSP header |
+| Site | Port | Stack | Score | Grade | Planted gaps |
+|---|---|---|---|---|---|
+| FreshKart India | 4001 | static HTML | 19 | F | No policy pages, 18 third-party scripts (17 without SRI), GSTIN only in an HTML comment, KYC mismatches |
+| QuickBites Delivery | 4002 | Nuxt | 28 | D | Thin boilerplate privacy policy, no refund or T&C, US registered office and no Indian address, no GSTIN, KYC mismatches |
+| CloudDesk SaaS | 4003 | Next.js | 55 | C | Refund and privacy pages are 40-60 word stubs, no T&C, no GSTIN |
+| Artisan Weaves | 4004 | Shopify | 81 | B | Nearly compliant — policies substantive but not exhaustive, GSTIN shown, KYC clean; missing a CSP header |
+
+Each site carries a different stack signature, so the integration advisor recommends a different
+Razorpay path for each: the Shopify app, Standard Checkout for Next.js, and so on.
 
 Serve them and run the full comparison against ground truth:
 
@@ -121,7 +124,14 @@ the local-serving values. Deploy to Vercel to see the header differences.
 
 ## Known limitations
 
-- The SQLite audit trail is write-only; `GET /api/scan/{job_id}` serves from memory, so completed
-  scans are lost on restart.
-- PCI headers are analysed for the homepage only, not per page.
-- A script on the apex domain of a `www.` site is counted as third-party.
+- The four test sites are synthetic and written by us, so the ground-truth numbers measure the
+  engine against a corpus we control. They demonstrate that the engine discriminates between
+  compliance levels; they are not a claim about accuracy on real merchant websites.
+- Ground truth is recorded on the deterministic rule-based path so it reproduces on a clean clone
+  with no credentials. With an LLM configured, policy quality scores can move a point or two and
+  the totals shift with them.
+- Generated policy documents are drafts for a merchant to review, not legal advice. Nothing checks
+  them for legal accuracy.
+- A site with no checkout or cart page has its security headers graded on the homepage.
+- `AuditEvent` in `backend/models/database.py` and `verify_payment_signature` in
+  `backend/tools/razorpay_client.py` are written but not yet wired to anything.

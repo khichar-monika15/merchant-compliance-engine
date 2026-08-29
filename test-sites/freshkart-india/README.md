@@ -30,8 +30,9 @@ All three diverge — "Pvt. Ltd." vs "PRIVATE LIMITED" vs extra space "Fresh Kar
 Served locally on port 4001:
 
 - Grade: F
-- Score: 24 (expected range 12-24)
-- RBI: 20 — only the contact page passes; the sole GSTIN on the site sits inside an HTML
+- Score: 19 (expected range 14-24)
+- RBI: 8 — no policy page is found at all; the contact page is partial (4/10) and the sole
+  GSTIN on the site sits inside an HTML
   comment and must not count as displayed
 - PCI: 20 — no headers, 18 third-party scripts with 17 lacking SRI
 - KYC: overall_consistent = false (5 mismatches)

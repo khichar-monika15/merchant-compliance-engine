@@ -28,8 +28,9 @@ KYC: PASS (all three normalize to the same name).
 Served locally on port 4004:
 
 - Grade: B
-- Score: 85 (expected range 76-89)
-- RBI: 5/5 pass
+- Score: 81 (expected range 76-89)
+- RBI: 88 — all five checks found; the three policies score 8/10 each, covering most but
+  not all of the checklist topics
 - PCI: 52 — deductions for the missing CSP and the Facebook Pixel without SRI
 - KYC: overall_consistent = true
 - Critical gaps: 3

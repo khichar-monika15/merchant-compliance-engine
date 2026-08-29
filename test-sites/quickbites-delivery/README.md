@@ -7,7 +7,7 @@ Synthetic food delivery site for MCIE ground-truth validation. KYC mismatches + 
 | Check | Result | Notes |
 |-------|--------|-------|
 | RBI-001 Refund Policy | FAIL | Missing entirely |
-| RBI-002 Privacy Policy | PARTIAL | Exists but copy-paste boilerplate, quality < 3/10 |
+| RBI-002 Privacy Policy | PARTIAL | Exists but generic boilerplate, quality 3/10 |
 | RBI-003 T&C | FAIL | Missing |
 | RBI-004 Contact Info | PARTIAL | Email + phone but NO physical address |
 | RBI-005 GST Display | FAIL | No GSTIN shown |
@@ -25,15 +25,15 @@ KYC mismatches:
 1. "QuickBites" vs "Quick Bites" — spacing difference in bank name
 2. "Pvt. Ltd." vs "PRIVATE LIMITED" — abbreviation mismatch (known pattern, forces match=False even at high similarity)
 
-KYC: overall_consistent = false, issues_count >= 2
+KYC: overall_consistent = false, issues_count = 5
 
 ## Expected output
 
 Served locally on port 4002:
 
 - Grade: D
-- Score: 36 (expected range 25-45)
-- RBI: 40 — contact passes, the copy-paste privacy policy scores low, refund and T&C are absent
+- Score: 28 (expected range 25-40)
+- RBI: 20 — contact scores 7/10, the boilerplate privacy policy scores 3/10, refund and T&C are absent
 - PCI: 37 — 6 third-party scripts, none with SRI
 - KYC: overall_consistent = false (5 mismatches)
 - Critical gaps: 10

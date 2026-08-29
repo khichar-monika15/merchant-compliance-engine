@@ -44,6 +44,15 @@ def _rbi_red_flag_gstins() -> set[str]:
 _RBI_RED_FLAG_GSTINS = _rbi_red_flag_gstins()
 
 
+def _contact_red_flags() -> set[str]:
+    check = next((c for c in _load_rbi_db()["checks"] if c["id"] == "RBI-004"), {})
+    return {rf.lower() for rf in check.get("quality_criteria", {}).get("red_flags", [])}
+
+
+_CONTACT_RED_FLAGS = _contact_red_flags()
+_PLACEHOLDER_CONTACT = {"example.com", "test@test.com"}
+
+
 def _html_to_text(html: str) -> str:
     """Strip HTML tags and decode entities for plain-text keyword matching."""
     from bs4 import BeautifulSoup
@@ -124,12 +133,25 @@ def _check_contact_page(html: str) -> tuple[bool, list[str]]:
         kw in lowered for kw in _ADDRESS_KEYWORDS
     )
 
+    # RBI-004 red flags: a place of business outside India, or placeholder contact details
+    foreign = sorted(f for f in _CONTACT_RED_FLAGS if f not in _PLACEHOLDER_CONTACT and f in lowered)
+    placeholders = sorted(f for f in _CONTACT_RED_FLAGS if f in _PLACEHOLDER_CONTACT and f in lowered)
+
     if not has_email:
         issues.append("No email address found on contact page")
     if not has_phone:
         issues.append("No Indian phone number found on contact page")
-    if not has_address:
+    if foreign:
+        # A foreign address and a missing Indian one are the same finding — report the specific one
+        issues.append(
+            f"Contact page shows an address outside India ('{foreign[0]}') — "
+            "RBI due diligence expects an Indian place of business"
+        )
+    elif not has_address:
         issues.append("No physical address found — RBI requires a physical business address")
+
+    for flag in placeholders:
+        issues.append(f"Placeholder contact detail on the contact page: '{flag}'")
 
     found = has_email  # Minimum: email present
     return found, issues
