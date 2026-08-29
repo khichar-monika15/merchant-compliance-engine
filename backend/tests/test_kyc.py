@@ -1,6 +1,59 @@
 import pytest
 
-from backend.tools.name_matcher import check_name_pair, normalize_name, validate_kyc_consistency
+from backend.tools.name_matcher import (
+    _MISMATCH_DETECTORS,
+    _NORMALIZATION_RULES,
+    _SIMILARITY_THRESHOLD,
+    check_name_pair,
+    normalize_name,
+    validate_kyc_consistency,
+)
+
+
+class TestGroundedInKnowledgeBase:
+    """RBI-006 defines the normalization rules and the similarity threshold.
+
+    The project convention is that compliance checks ground in `backend/knowledge/*.json`. This
+    module hardcoded its own copy, so the checklist and the code could drift apart silently.
+    """
+
+    def test_rules_come_from_the_checklist(self):
+        import json
+        from pathlib import Path
+
+        db = json.loads((Path("backend/knowledge/rbi_mdd_checklist.json")).read_text())
+        rbi_006 = next(c for c in db["checks"] if c["id"] == "RBI-006")
+        criteria = rbi_006["quality_criteria"]
+
+        assert _SIMILARITY_THRESHOLD == criteria["min_similarity_threshold"]
+        assert len(_NORMALIZATION_RULES) == len(criteria["normalization_rules"])
+
+    def test_every_declared_mismatch_pattern_has_a_detector(self):
+        import json
+        from pathlib import Path
+
+        db = json.loads((Path("backend/knowledge/rbi_mdd_checklist.json")).read_text())
+        rbi_006 = next(c for c in db["checks"] if c["id"] == "RBI-006")
+        declared = set(rbi_006["quality_criteria"]["known_mismatch_patterns"])
+
+        assert declared <= set(_MISMATCH_DETECTORS), (
+            f"declared in the checklist but never detected: {declared - set(_MISMATCH_DETECTORS)}"
+        )
+
+    def test_co_vs_company_is_detected(self):
+        result = check_name_pair("Sharma Co", "Sharma Company", "PAN", "GST")
+        assert result["match"] is False
+        assert any("Co vs Company" in i for i in result["issues"]), result["issues"]
+
+    def test_intl_vs_international_is_detected(self):
+        result = check_name_pair("Verma Intl Traders", "Verma International Traders", "PAN", "GST")
+        assert result["match"] is False
+        assert any("Intl vs International" in i for i in result["issues"]), result["issues"]
+
+    def test_abbreviation_match_is_word_bounded(self):
+        """'co' sits inside 'Cotton' and 'Company'; only a whole word counts."""
+        result = check_name_pair("Cotton Company Ltd", "Cotton Company Limited", "PAN", "GST")
+        assert not any("Co vs Company" in i for i in result["issues"]), result["issues"]
 
 
 class TestNormalizeName:
