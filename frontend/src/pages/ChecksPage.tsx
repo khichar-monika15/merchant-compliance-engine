@@ -280,7 +280,7 @@ export function ChecksPage() {
                 <Card>
                   <p className="mb-3 text-overline uppercase text-text-tertiary">Grades</p>
                   <ul className="space-y-1.5">
-                    {kb.scoring.grades.map((g) => (
+                    {kb.scoring.grades.map((g, i) => (
                       <li key={g.grade} className="flex items-center gap-3">
                         <span
                           className={cn(
@@ -295,7 +295,11 @@ export function ChecksPage() {
                           {g.grade}
                         </span>
                         <span className="text-body-sm text-text-secondary">
-                          {g.min_score === 0 ? 'below 25' : `${g.min_score} and above`}
+                          {/* The bottom band is "below the one above it". Deriving it keeps the
+                              number out of this file, which is the whole claim of this page. */}
+                          {g.min_score === 0
+                            ? `below ${kb.scoring.grades[i - 1]?.min_score ?? 0}`
+                            : `${g.min_score} and above`}
                         </span>
                       </li>
                     ))}

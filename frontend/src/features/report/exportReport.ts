@@ -1,9 +1,5 @@
 import type { GapItem, MerchantInput, ReadinessReport } from '@/api/types'
 
-export function allGaps(report: ReadinessReport): GapItem[] {
-  return [...(report.critical_gaps ?? []), ...(report.warnings ?? []), ...(report.info_items ?? [])]
-}
-
 /**
  * The scanned URL is not a field on ReadinessReport, but the crawler records it in the audit
  * trail as "Crawled <url>". That makes the site recoverable for a report opened from a link,

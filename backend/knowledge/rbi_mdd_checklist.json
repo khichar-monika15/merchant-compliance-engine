@@ -73,6 +73,13 @@
             "service delivery",
             "work completed"
           ]
+        },
+        "food_delivery": {
+          "extra_topics": [
+            "order cancellation window",
+            "undelivered order",
+            "incorrect or spoiled items"
+          ]
         }
       }
     },
@@ -143,6 +150,12 @@
           "extra_topics": [
             "client data",
             "project files"
+          ]
+        },
+        "food_delivery": {
+          "extra_topics": [
+            "delivery partner data sharing",
+            "live location tracking"
           ]
         }
       }
@@ -219,6 +232,13 @@
             "scope of work",
             "deliverables",
             "payment schedule"
+          ]
+        },
+        "food_delivery": {
+          "extra_topics": [
+            "delivery time estimate",
+            "restaurant partner responsibility",
+            "delivery fees"
           ]
         }
       }

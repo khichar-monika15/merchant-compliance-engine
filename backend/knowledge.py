@@ -77,6 +77,7 @@ KNOWLEDGE_FIELDS: dict[str, dict[str, tuple[str, str]]] = {
         "ecommerce": dynamic("business_type_variations"),
         "saas": dynamic("business_type_variations"),
         "services": dynamic("business_type_variations"),
+        "food_delivery": dynamic("business_type_variations"),
         "extra_topics": applied("backend.agents.compliance_auditor"),
         "normalization_rules": applied("backend.tools.name_matcher"),
         "pattern": applied("backend.tools.name_matcher"),

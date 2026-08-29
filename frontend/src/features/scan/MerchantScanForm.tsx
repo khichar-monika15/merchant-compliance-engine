@@ -11,7 +11,6 @@ const BUSINESS_TYPES = [
   { value: 'saas', label: 'SaaS' },
   { value: 'services', label: 'Services' },
   { value: 'food_delivery', label: 'Food delivery' },
-  { value: 'marketplace', label: 'Marketplace' },
 ]
 
 const EMPTY: MerchantInput = {

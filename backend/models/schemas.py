@@ -9,8 +9,6 @@ from pydantic import BaseModel, HttpUrl, Field
 class Severity(str, Enum):
     CRITICAL = "critical"
     WARNING = "warning"
-    INFO = "info"
-    PASS = "pass"
 
 
 class MerchantInput(BaseModel):
@@ -156,6 +154,9 @@ class GapItem(BaseModel):
     severity: Severity
     category: str
     fix_suggestion: str = ""
+    # The page the finding came from, where there is one. The landing page promises every gap
+    # carries a source URL; ComplianceCheck already held it and the report dropped it here.
+    source_url: str | None = None
 
 
 class AuditLogEntry(BaseModel):
@@ -179,7 +180,6 @@ class ReadinessReport(BaseModel):
     score_breakdown: list[ScoreComponent] = []
     critical_gaps: list[GapItem] = []
     warnings: list[GapItem] = []
-    info_items: list[GapItem] = []
     compliance_details: Optional[ComplianceResult] = None
     pci_details: Optional[PCIResult] = None
     kyc_details: Optional[KYCResult] = None

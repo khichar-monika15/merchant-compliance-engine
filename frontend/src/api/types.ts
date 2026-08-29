@@ -1,6 +1,6 @@
 // Types derived from backend/models/schemas.py, keep in sync
 
-export type Severity = 'critical' | 'warning' | 'info' | 'pass'
+export type Severity = 'critical' | 'warning'
 
 // --- Merchant input (matches backend MerchantInput + ScanRequest) ---
 export interface MerchantInput {
@@ -66,7 +66,16 @@ export interface PCIResult {
   x_content_type: SecurityHeaderInfo
   referrer_policy: SecurityHeaderInfo
   security_score: number
+  /** Findings tagged with the check that produced them and that check's declared severity. */
+  issues: PCIIssue[]
+  /** The message text of `issues`, for a plain list. Derived, not a second source of truth. */
   critical_issues: string[]
+}
+
+export interface PCIIssue {
+  check_id: string
+  message: string
+  severity: Severity
 }
 
 // --- KYC ---
@@ -104,6 +113,9 @@ export interface PolicyGenResult {
 export interface IntegrationResult {
   detected_stack: Record<string, string[]>
   recommended_product: string
+  /** Why this product, and where its docs are. Declared per stack in the knowledge base. */
+  recommendation_reason: string
+  docs_url: string
   integration_method: string
   starter_code: string
   starter_code_language: string
@@ -117,6 +129,8 @@ export interface GapItem {
   severity: Severity
   category: string
   fix_suggestion: string
+  /** The page the finding came from, where the check found one. */
+  source_url?: string | null
 }
 
 // --- Audit ---
@@ -135,7 +149,6 @@ export interface ReadinessReport {
   score_breakdown: ScoreComponent[]
   critical_gaps: GapItem[]
   warnings: GapItem[]
-  info_items: GapItem[]
   compliance_details?: ComplianceResult
   pci_details?: PCIResult
   kyc_details?: KYCResult
@@ -204,15 +217,51 @@ export interface PciCheck {
   name: string
   severity: Severity
   description: string
+  /** Only PCI-001 uses `deductions`. The other checks each score differently, and the page
+   *  renders whichever shape a check actually declares. PCI-003 has no scoring block at all. */
   scoring?: {
     max_points?: number
     deductions?: Array<{ condition: string; points: number; reason: string }>
+    per_script_without_sri_deduction?: number
+    max_deduction?: number
+    no_csp_deduction?: number
+    weak_csp_deduction?: number
+    moderate_csp_deduction?: number
+    strong_csp_deduction?: number
+    headers?: Array<{ name: string; points: number; requirement?: string }>
+  }
+  known_exemptions?: string[]
+  notes?: string
+  grading?: Record<string, { score_min: number; description: string }>
+}
+
+export interface RiskEntry {
+  domains: string[]
+  category: string
+}
+
+export interface StackSignature {
+  name: string
+  razorpay_recommendation: {
+    product: string
+    reason: string
+    integration_method: string
+    docs_url: string
   }
 }
 
 export interface KnowledgeBase {
   rbi: { version: string; source: string; checks: RbiCheck[] }
   pci: { version: string; source: string; checks: PciCheck[]; payment_page_patterns: string[] }
+  script_risk: {
+    version: string
+    last_updated: string
+    notes: string
+    low_risk: RiskEntry[]
+    medium_risk: RiskEntry[]
+    high_risk_indicators: string[]
+  }
+  stacks: Record<string, StackSignature>
   scoring: {
     weights: Record<string, number>
     grades: Array<{ grade: string; min_score: number }>

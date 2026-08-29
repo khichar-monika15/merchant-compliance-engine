@@ -81,10 +81,10 @@ def _estimate_fix_time(critical: int, warnings: int) -> str:
     return "1-2 weeks (major compliance overhaul required)"
 
 
-def _compliance_gaps(compliance) -> tuple[list[GapItem], list[GapItem], list[GapItem]]:
-    critical, warnings, info = [], [], []
+def _compliance_gaps(compliance) -> tuple[list[GapItem], list[GapItem]]:
+    critical, warnings = [], []
     if compliance is None:
-        return critical, warnings, info
+        return critical, warnings
 
     checks = {
         "refund": compliance.refund_policy,
@@ -110,21 +110,20 @@ def _compliance_gaps(compliance) -> tuple[list[GapItem], list[GapItem], list[Gap
             severity=check.severity,
             category="compliance",
             fix_suggestion=fix_hints.get(key, ""),
+            source_url=check.url,
         )
         if check.severity == Severity.CRITICAL:
             critical.append(gap)
-        elif check.severity == Severity.WARNING:
-            warnings.append(gap)
         else:
-            info.append(gap)
+            warnings.append(gap)
 
-    return critical, warnings, info
+    return critical, warnings
 
 
-def _pci_gaps(pci) -> tuple[list[GapItem], list[GapItem], list[GapItem]]:
-    critical, warnings, info = [], [], []
+def _pci_gaps(pci) -> tuple[list[GapItem], list[GapItem]]:
+    critical, warnings = [], []
     if pci is None:
-        return critical, warnings, info
+        return critical, warnings
 
     # Severity is the one the check declares, carried on the issue. It used to be guessed here
     # by substring-matching the message for "csp", "sri" and "6.4.3", under a comment that
@@ -140,13 +139,13 @@ def _pci_gaps(pci) -> tuple[list[GapItem], list[GapItem], list[GapItem]]:
         )
         (critical if issue.severity == Severity.CRITICAL else warnings).append(gap)
 
-    return critical, warnings, info
+    return critical, warnings
 
 
-def _kyc_gaps(kyc) -> tuple[list[GapItem], list[GapItem], list[GapItem]]:
-    critical, warnings, info = [], [], []
+def _kyc_gaps(kyc) -> tuple[list[GapItem], list[GapItem]]:
+    critical, warnings = [], []
     if kyc is None or kyc.overall_consistent:
-        return critical, warnings, info
+        return critical, warnings
 
     for mismatch in kyc.common_mismatches:
         critical.append(GapItem(
@@ -157,7 +156,7 @@ def _kyc_gaps(kyc) -> tuple[list[GapItem], list[GapItem], list[GapItem]]:
             fix_suggestion="Ensure the business name is identical across PAN certificate, GST registration, and bank account, resolve abbreviation differences like Pvt./Private and Ltd./Limited",
         ))
 
-    return critical, warnings, info
+    return critical, warnings
 
 
 async def run(state: EngineState) -> dict:
@@ -186,13 +185,12 @@ async def run(state: EngineState) -> dict:
         grade = _score_to_grade(overall)
 
         # Collect all gaps
-        c_comp, w_comp, i_comp = _compliance_gaps(state.compliance_result)
-        c_pci, w_pci, i_pci = _pci_gaps(state.pci_result)
-        c_kyc, w_kyc, i_kyc = _kyc_gaps(state.kyc_result)
+        c_comp, w_comp = _compliance_gaps(state.compliance_result)
+        c_pci, w_pci = _pci_gaps(state.pci_result)
+        c_kyc, w_kyc = _kyc_gaps(state.kyc_result)
 
         all_critical = c_comp + c_pci + c_kyc
         all_warnings = w_comp + w_pci + w_kyc
-        all_info = i_comp + i_pci + i_kyc
 
         fix_time = _estimate_fix_time(len(all_critical), len(all_warnings))
 
@@ -212,7 +210,6 @@ async def run(state: EngineState) -> dict:
             score_breakdown=breakdown,
             critical_gaps=all_critical,
             warnings=all_warnings,
-            info_items=all_info,
             compliance_details=state.compliance_result,
             pci_details=state.pci_result,
             kyc_details=state.kyc_result,

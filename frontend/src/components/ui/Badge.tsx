@@ -14,8 +14,6 @@ const VARIANTS = {
 export const SEVERITY_VARIANT: Record<string, keyof typeof VARIANTS> = {
   critical: 'critical',
   warning: 'warning',
-  info: 'info',
-  pass: 'success',
 }
 
 export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
