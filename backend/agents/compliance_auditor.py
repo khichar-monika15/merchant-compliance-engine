@@ -17,7 +17,16 @@ from backend.models.schemas import (
 
 _RBI_DB_PATH = Path(__file__).parent.parent / "knowledge" / "rbi_mdd_checklist.json"
 _GST_PATTERN = re.compile(r"\d{2}[A-Z]{5}\d{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}")
-_PHONE_IN = re.compile(r"(\+91|0)?[\s\-]?[6-9]\d{9}")
+# Exactly 10 subscriber digits, optional +91/0 trunk prefix, bounded by non-digits so the match
+# cannot run on into an adjacent number (a house number, a PIN code, an id inside a script)
+_PHONE_CANDIDATE = re.compile(r"(?<!\d)(?:(?:\+?91|0)[\s\-]?)?(?:\d[\s\-]?){9}\d(?!\d)")
+# An Indian postal address carries a 6-digit PIN code; requiring one kills the "india appears in
+# the footer" false positive that made has_address true for essentially every site
+_PIN_CODE = re.compile(r"(?<!\d)[1-9]\d{5}(?!\d)")
+_ADDRESS_KEYWORDS = (
+    "address", "road", "street", "nagar", "colony", "sector", "lane", "marg", "plot",
+    "floor", "building", "india",
+)
 _EMAIL_PATTERN = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
 
 
@@ -69,12 +78,37 @@ def _search_page_for_policy(html: str, check: dict) -> tuple[bool, int]:
     return True, _policy_quality(html, check)
 
 
+def _has_indian_phone(text: str) -> bool:
+    """Accept both mobile and STD-code landline numbers.
+
+    A mobile-only pattern rejected legitimate landlines such as +91-522-4001-234, which is a
+    false 'no phone number' gap against a merchant that publishes one.
+    """
+    for match in _PHONE_CANDIDATE.finditer(text):
+        digits = re.sub(r"\D", "", match.group())
+        if len(digits) == 12 and digits.startswith("91"):
+            digits = digits[2:]
+        elif len(digits) == 11 and digits.startswith("0"):
+            digits = digits[1:]
+        # Indian subscriber numbers are 10 digits; mobiles start 6-9, landlines 2-8 by STD code
+        if len(digits) == 10 and digits[0] in "23456789":
+            return True
+    return False
+
+
 def _check_contact_page(html: str) -> tuple[bool, list[str]]:
+    """Check visible contact details.
+
+    Runs on extracted text, not raw HTML: script bodies, base64 blobs and query strings used to
+    satisfy the phone regex, and 'road' matched inside 'broadcast', so almost every site passed.
+    """
     issues: list[str] = []
-    has_email = bool(_EMAIL_PATTERN.search(html))
-    has_phone = bool(_PHONE_IN.search(html))
-    has_address = len(html) > 100 and any(
-        kw in html.lower() for kw in ["address", "road", "street", "nagar", "colony", "india", "bangalore", "mumbai", "delhi", "chennai", "hyderabad", "pune"]
+    text = _html_to_text(html)
+    lowered = text.lower()
+    has_email = bool(_EMAIL_PATTERN.search(text))
+    has_phone = _has_indian_phone(text)
+    has_address = bool(_PIN_CODE.search(text)) and any(
+        kw in lowered for kw in _ADDRESS_KEYWORDS
     )
 
     if not has_email:

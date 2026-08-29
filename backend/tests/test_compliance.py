@@ -1,3 +1,5 @@
+import pytest
+
 from backend.agents.compliance_auditor import (
     _check_contact_page,
     _check_gst_display,
@@ -31,6 +33,43 @@ class TestContactPageChecker:
         found, issues = _check_contact_page(html)
         assert found is False
         assert len(issues) > 0
+
+    def test_script_body_does_not_satisfy_phone_or_address(self):
+        """Digits inside a script and 'road' inside 'broadcast' used to pass both checks."""
+        html = """
+        <p>Email: hi@shop.in</p>
+        <script>var t = 9876543210123; var mode = "broadcast";</script>
+        """
+        found, issues = _check_contact_page(html)
+        assert found is True  # email is real
+        assert any("phone" in i.lower() for i in issues)
+        assert any("address" in i.lower() for i in issues)
+
+    def test_country_name_alone_is_not_an_address(self):
+        html = "<footer><p>Made in India</p><p>Email: hi@shop.in</p></footer>"
+        _, issues = _check_contact_page(html)
+        assert any("address" in i.lower() for i in issues)
+
+    @pytest.mark.parametrize("phone", [
+        "+91 98765 43210",      # mobile, spaced
+        "+91-522-4001-234",     # STD landline
+        "09876543210",          # trunk-prefixed mobile
+        "9876543210",           # bare mobile
+    ])
+    def test_accepts_mobile_and_landline_formats(self, phone):
+        found, issues = _check_contact_page(f"<p>Email: hi@shop.in</p><p>Phone: {phone}</p>")
+        assert found is True
+        assert not any("phone" in i.lower() for i in issues), f"{phone} rejected"
+
+    def test_real_indian_address_with_pin_accepted(self):
+        html = """
+        <p>Email: hi@shop.in</p>
+        <p>Phone: +91 98765 43210</p>
+        <p>14 Hazratganj, Lucknow 226001, Uttar Pradesh, India</p>
+        """
+        found, issues = _check_contact_page(html)
+        assert found is True
+        assert issues == []
 
 
 class TestGSTDisplay:
