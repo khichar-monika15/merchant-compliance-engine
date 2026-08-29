@@ -145,9 +145,17 @@ class AuditLogEntry(BaseModel):
     duration_ms: Optional[float] = None
 
 
+class ScoreComponent(BaseModel):
+    """One weighted axis of the readiness score, as the backend actually computed it."""
+    label: str
+    score: int  # 0-100
+    weight: float  # fraction of the overall score
+
+
 class ReadinessReport(BaseModel):
     overall_score: int = 0
     grade: str = "F"
+    score_breakdown: list[ScoreComponent] = []
     critical_gaps: list[GapItem] = []
     warnings: list[GapItem] = []
     info_items: list[GapItem] = []

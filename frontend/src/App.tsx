@@ -9,19 +9,6 @@ import { CodeBlock } from './components/CodeBlock'
 import { AuditTrail } from './components/AuditTrail'
 import { ReportExport } from './components/ReportExport'
 import { useComplianceCheck } from './hooks/useComplianceCheck'
-import { ReadinessReport } from './types'
-
-function deriveScores(report: ReadinessReport) {
-  const rbi = report.compliance_details?.overall_score ?? 0
-  const pci = report.pci_details?.security_score ?? 0
-  const kyc = report.kyc_details
-    ? report.kyc_details.overall_consistent
-      ? 100
-      : Math.round(report.kyc_details.confidence * 100)
-    : 0
-  const integration = report.integration_details?.test_payment_result?.success ? 80 : 40
-  return { rbi, kyc, pci, integration }
-}
 
 export default function App() {
   const { status, report, progress, error, submit } = useComplianceCheck()
@@ -62,16 +49,12 @@ export default function App() {
         )}
 
         {report && (() => {
-          const scores = deriveScores(report)
           return (
             <>
               <ScoreCard
                 score={report.overall_score}
                 grade={report.grade}
-                rbiScore={scores.rbi}
-                kycScore={scores.kyc}
-                pciScore={scores.pci}
-                integrationScore={scores.integration}
+                breakdown={report.score_breakdown ?? []}
               />
 
               <GapAnalysis gaps={allGaps} estimatedFixTime={report.estimated_fix_time} />

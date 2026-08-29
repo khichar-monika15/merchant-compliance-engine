@@ -78,6 +78,27 @@ class TestIntegrationScore:
         assert _score_to_grade(overall) == "A"
 
 
+class TestScoreBreakdown:
+    """The breakdown the UI renders must reconcile with the headline score."""
+
+    async def test_breakdown_sums_to_overall_score(self, basic_engine_state, crawl_result_no_policies):
+        from backend.agents import kyc_validator, pci_scanner, report_generator
+
+        basic_engine_state.crawl_result = crawl_result_no_policies
+        for agent in (pci_scanner, kyc_validator):
+            for key, value in (await agent.run(basic_engine_state)).items():
+                setattr(basic_engine_state, key, value)
+
+        update = await report_generator.run(basic_engine_state)
+        report = update["readiness_report"]
+
+        assert len(report.score_breakdown) == 4
+        assert report.overall_score == int(sum(c.score * c.weight for c in report.score_breakdown))
+        assert sum(c.weight for c in report.score_breakdown) == pytest.approx(1.0)
+        for c in report.score_breakdown:
+            assert 0 <= c.score <= 100
+
+
 class TestKYCScore:
     @staticmethod
     def _result(matches: list[bool], similarity: float = 0.98) -> KYCResult:

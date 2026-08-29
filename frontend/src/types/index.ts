@@ -132,6 +132,7 @@ export interface AuditLogEntry {
 export interface ReadinessReport {
   overall_score: number
   grade: string
+  score_breakdown: ScoreComponent[]
   critical_gaps: GapItem[]
   warnings: GapItem[]
   info_items: GapItem[]
@@ -149,6 +150,12 @@ export interface ScanResponse {
   job_id: string
   status: 'queued' | 'running' | 'completed' | 'failed'
   report?: ReadinessReport
+}
+
+export interface ScoreComponent {
+  label: string
+  score: number
+  weight: number
 }
 
 export type ProgressEvent = {

@@ -7,6 +7,7 @@ from backend.models.schemas import (
     EngineState,
     GapItem,
     ReadinessReport,
+    ScoreComponent,
     Severity,
 )
 
@@ -157,13 +158,15 @@ async def run(state: EngineState) -> dict:
         pci_score = state.pci_result.security_score if state.pci_result else 0
         integration_score = _integration_score(state.integration_result)
 
-        # Weighted score
-        overall = int(
-            rbi_score * _WEIGHTS["rbi_compliance"]
-            + kyc_score * _WEIGHTS["kyc"]
-            + pci_score * _WEIGHTS["pci"]
-            + integration_score * _WEIGHTS["integration"]
-        )
+        # Weighted score. The breakdown ships with the report so the UI renders the numbers
+        # the backend actually used instead of recomputing them and drifting.
+        breakdown = [
+            ScoreComponent(label="RBI Compliance", score=rbi_score, weight=_WEIGHTS["rbi_compliance"]),
+            ScoreComponent(label="KYC Consistency", score=kyc_score, weight=_WEIGHTS["kyc"]),
+            ScoreComponent(label="PCI DSS", score=pci_score, weight=_WEIGHTS["pci"]),
+            ScoreComponent(label="Integration", score=integration_score, weight=_WEIGHTS["integration"]),
+        ]
+        overall = int(sum(c.score * c.weight for c in breakdown))
         grade = _score_to_grade(overall)
 
         # Collect all gaps
@@ -190,6 +193,7 @@ async def run(state: EngineState) -> dict:
         report = ReadinessReport(
             overall_score=overall,
             grade=grade,
+            score_breakdown=breakdown,
             critical_gaps=all_critical,
             warnings=all_warnings,
             info_items=all_info,
