@@ -190,20 +190,38 @@ async def validate_one(name: str, gt_file: str) -> bool:
     return passed == total
 
 
-def _active_path() -> str:
-    """Which scoring path this run will take, named in the output so it cannot be misread."""
+async def _active_path() -> str:
+    """Which scoring path this run actually took.
+
+    Reporting the configured path is not the same thing. An expired token leaves the engine
+    silently falling back to rule-based scoring while every setting still says LLM, so a
+    transcript would claim the LLM path was exercised when it was not. This probes the endpoint
+    and reports what really happened.
+    """
     from backend.config import get_settings
+    from backend.tools.llm_client import llm_complete
 
     settings = get_settings()
     if settings.openai_api_key:
-        return f"LLM-refined via OpenAI-compatible endpoint ({settings.llm_model})"
-    if settings.anthropic_api_key:
-        return f"LLM-refined via Anthropic ({settings.anthropic_model})"
-    return "rule-only, no LLM credentials configured"
+        configured = f"OpenAI-compatible endpoint ({settings.llm_model})"
+    elif settings.anthropic_api_key:
+        configured = f"Anthropic ({settings.anthropic_model})"
+    else:
+        return "rule-only, no LLM credentials configured"
+
+    try:
+        await llm_complete("Reply with exactly: PONG")
+    except Exception as e:
+        return (
+            f"rule-only. {configured} is configured but UNREACHABLE "
+            f"({type(e).__name__}), so every policy score fell back to rules"
+        )
+    return f"LLM-refined via {configured}, reachable"
 
 
 async def main() -> bool:
-    print(f"Scoring path: {_active_path()}")
+    path = await _active_path()
+    print(f"Scoring path: {path}")
 
     results = []
     for name, gt_file in TEST_CASES:
@@ -213,7 +231,7 @@ async def main() -> bool:
     print(f"\n{'='*60}")
     print("GROUND TRUTH VALIDATION SUMMARY")
     print(f"{'='*60}")
-    print(f"  Scoring path: {_active_path()}")
+    print(f"  Scoring path: {path}")
     for name, ok in results:
         status = "PASS" if ok else "FAIL"
         print(f"  [{status}] {name}")
