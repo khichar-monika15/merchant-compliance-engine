@@ -1,6 +1,12 @@
 import axios from 'axios'
 
-import type { KnowledgeBase, MerchantInput, ScanResponse } from './types'
+import type {
+  AssistantResponse,
+  AssistantTurn,
+  KnowledgeBase,
+  MerchantInput,
+  ScanResponse,
+} from './types'
 
 /**
  * Same origin on purpose. The Vite dev server proxies `/api` and `/ws` to port 8000, and the
@@ -37,5 +43,19 @@ export function scanSocketUrl(jobId: string): string {
 
 export async function getKnowledge(): Promise<KnowledgeBase> {
   const { data } = await http.get<KnowledgeBase>('/api/knowledge')
+  return data
+}
+
+export async function askAssistant(
+  question: string,
+  jobId: string | undefined,
+  history: AssistantTurn[],
+): Promise<AssistantResponse> {
+  const { data } = await http.post<AssistantResponse>(
+    '/api/assistant',
+    { question, job_id: jobId, history },
+    // Grounded answers run a full report through the model, which is slower than a health check.
+    { timeout: 60_000 },
+  )
   return data
 }

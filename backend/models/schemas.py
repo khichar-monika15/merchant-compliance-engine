@@ -222,3 +222,27 @@ class ScanResponse(BaseModel):
     # Why a scan failed. Without this the reason existed only in the WebSocket stream, so a
     # reload turned "could not reach the site" into a bare "failed".
     error: Optional[str] = None
+
+
+class AssistantTurn(BaseModel):
+    role: str  # "user" or "assistant"
+    content: str
+
+
+class AssistantRequest(BaseModel):
+    question: str
+    # When present, the merchant's own report is put in front of the model, so answers are about
+    # their site rather than about compliance in the abstract.
+    job_id: Optional[str] = None
+    history: list[AssistantTurn] = []
+
+
+class AssistantResponse(BaseModel):
+    answer: str
+    # The check ids the answer actually cites, filtered to ones the knowledge base declares. The
+    # UI renders these so a reader can see which part of an answer is grounded in a published
+    # rule and which is the model talking.
+    cited_checks: list[str] = []
+    # False when no language model is reachable, so the UI can say that plainly instead of
+    # rendering an apology as though it were an answer.
+    available: bool = True

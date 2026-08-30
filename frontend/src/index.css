@@ -64,6 +64,17 @@
  * this inverts to black on white, drops navigation and controls, and stops cards breaking
  * across pages. `data-print-hide` marks anything that is interaction rather than content.
  */
+/* Someone who has asked their OS for less motion should not get a pulsing button. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 @media print {
   @page {
     margin: 16mm;

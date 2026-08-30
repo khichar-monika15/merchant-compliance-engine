@@ -4,6 +4,7 @@ import { LayoutDashboard, LogOut, Menu, Radar, ShieldCheck, X } from 'lucide-rea
 
 import { useAuth } from '@/auth/AuthContext'
 import { Tooltip, cn } from '@/components/ui'
+import { AssistantWidget } from '@/features/assistant/AssistantWidget'
 import { useRunningCount } from '@/scan/scanStore'
 
 import { useBackendHealth } from './useBackendHealth'
@@ -148,6 +149,9 @@ export function DashboardLayout() {
           <Outlet />
         </main>
       </div>
+
+      {/* Reads the report on whichever route is open, so answers are about this merchant. */}
+      <AssistantWidget />
     </div>
   )
 }

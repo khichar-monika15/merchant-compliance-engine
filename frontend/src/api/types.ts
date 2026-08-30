@@ -291,3 +291,16 @@ export interface KnowledgeBase {
     grades: Array<{ grade: string; min_score: number }>
   }
 }
+
+export interface AssistantTurn {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export interface AssistantResponse {
+  answer: string
+  /** Check ids the answer cites, filtered by the backend to ones the knowledge base declares. */
+  cited_checks: string[]
+  /** False when no language model is reachable, so the UI says so instead of showing an answer. */
+  available: boolean
+}

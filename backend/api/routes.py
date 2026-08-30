@@ -16,7 +16,14 @@ from backend.api import websocket
 from backend.api.websocket import broadcast_progress, finish_job, register_job
 from backend.config import get_settings
 from backend.models.database import AuditRun, Base
-from backend.models.schemas import MerchantInput, ReadinessReport, ScanRequest, ScanResponse
+from backend.models.schemas import (
+    AssistantRequest,
+    AssistantResponse,
+    MerchantInput,
+    ReadinessReport,
+    ScanRequest,
+    ScanResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -257,3 +264,35 @@ async def get_scan(job_id: str):
         return persisted
 
     raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+
+@router.post("/assistant", response_model=AssistantResponse)
+async def assistant(request: AssistantRequest):
+    """Answer a merchant's question about their own report.
+
+    The report, when a job id is given, and a digest of every check the engine applies are put in
+    front of the model, so explanations of a finding come from the same rules that produced it.
+    Answers may go wider than that, which is why the response separates the check ids an answer
+    actually cites from the rest of it, and why the UI carries a disclaimer.
+    """
+    from backend.tools.assistant import answer_question
+
+    question = request.question.strip()
+    if not question:
+        raise HTTPException(status_code=422, detail="A question is required")
+
+    report = None
+    if request.job_id:
+        job = _jobs.get(request.job_id)
+        if job:
+            report = job.get("report")
+        else:
+            persisted = await _load_persisted_report(request.job_id)
+            report = persisted.report if persisted else None
+
+    result = await answer_question(
+        question,
+        report=report,
+        history=[turn.model_dump() for turn in request.history],
+    )
+    return AssistantResponse(**result)

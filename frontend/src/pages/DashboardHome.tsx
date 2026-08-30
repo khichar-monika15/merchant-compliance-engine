@@ -45,14 +45,14 @@ export function DashboardHome() {
             <BookOpen className="h-6 w-6 text-text-secondary" />
             <h2 className="mt-3 text-h3 text-text-primary">What gets checked</h2>
             <p className="mt-1 text-body-sm text-text-secondary">
-              Eleven checks with formal identifiers: six from the RBI Merchant Due Diligence
-              checklist, five from PCI DSS v4.0.1 requirements 6.4.3 and 11.6.1.
+              12 checks with formal identifiers: 7 from the RBI Merchant Due Diligence
+              checklist, 5 from PCI DSS v4.0.1 requirements 6.4.3 and 11.6.1.
             </p>
           </div>
           <Button
             variant="secondary"
             className="mt-4 self-start"
-            onClick={() => navigate('/checks')}
+            onClick={() => navigate('/checks', { state: { from: '/dashboard' } })}
           >
             See every check
           </Button>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { ArrowLeft, ShieldCheck, TriangleAlert } from 'lucide-react'
 
 import { getKnowledge } from '@/api/client'
@@ -313,10 +313,14 @@ function PciCard({ check }: { check: PciCheck }) {
 export function ChecksPage() {
   const [kb, setKb] = useState<KnowledgeBase | null>(null)
   const [error, setError] = useState(false)
+  const location = useLocation()
 
   useEffect(() => {
     getKnowledge().then(setKb).catch(() => setError(true))
   }, [])
+
+  // Set by whoever linked here. Absent for a direct link or a visit from the landing page.
+  const backTo = (location.state as { from?: string } | null)?.from ?? '/'
 
   return (
     <div className="min-h-screen bg-surface">
@@ -326,12 +330,15 @@ export function ChecksPage() {
             <ShieldCheck className="h-5 w-5 text-accent" />
             <span className="text-body font-semibold text-text-primary">MCIE</span>
           </Link>
+          {/* Back to wherever the reader came from. This always went to the landing page, so a
+              signed-in merchant who opened the checks list from their dashboard was dropped out
+              of the app to get back. */}
           <Link
-            to="/"
+            to={backTo}
             className="ml-auto inline-flex items-center gap-1.5 text-body-sm text-text-secondary hover:text-text-primary"
           >
             <ArrowLeft className="h-4 w-4" />
-            Home
+            {backTo === '/dashboard' ? 'Dashboard' : 'Home'}
           </Link>
         </div>
       </header>

@@ -74,6 +74,7 @@ export default {
       animation: {
         'fade-in': 'fadeIn 0.3s ease-out',
         shimmer: 'shimmer 2s infinite linear',
+        'pulse-glow': 'pulseGlow 1.8s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {
@@ -83,6 +84,16 @@ export default {
         shimmer: {
           '0%': { backgroundPosition: '-200% 0' },
           '100%': { backgroundPosition: '200% 0' },
+        },
+        // The drop shadow is kept in both frames so the button does not appear to lift as it
+        // glows; only the accent halo breathes.
+        pulseGlow: {
+          '0%, 100%': {
+            boxShadow: '0 0 0 0 rgba(13,148,251,0.45), 0 10px 15px -3px rgba(0,0,0,0.35)',
+          },
+          '50%': {
+            boxShadow: '0 0 24px 7px rgba(13,148,251,0.5), 0 10px 15px -3px rgba(0,0,0,0.35)',
+          },
         },
       },
     },

@@ -333,3 +333,74 @@ class TestThePrintedReportKeepsItsContent:
         assert "active === 'compliance' &&" not in source, (
             "tabs are still mounted only when active, so the PDF holds one tab"
         )
+
+
+class TestTheAssistantCarriesItsDisclaimer:
+    """The assistant may answer beyond the knowledge base, so the disclaimer is the mitigation.
+
+    It is the thing that makes the wider scope defensible rather than a liability, so it is not
+    optional decoration and a refactor must not quietly drop it.
+    """
+
+    def test_the_panel_says_answers_can_be_wrong(self):
+        """Pinned to the meaning, not the sentence, so rewording it does not break the build."""
+        source = _read("features/assistant/AssistantWidget.tsx")
+        assert "AI-generated" in source, (
+            "the assistant panel no longer warns that answers are AI-generated"
+        )
+        assert re.search(r"can be wrong|may be wrong|check anything", source), (
+            "the disclaimer no longer warns the answer can be wrong"
+        )
+
+    def test_the_panel_explains_what_a_citation_means(self):
+        """A check badge is the reader's only signal that a claim is grounded in a real rule."""
+        source = _read("features/assistant/AssistantWidget.tsx")
+        assert re.search(r"[Tt]agged answers|check id", source), (
+            "the disclaimer does not explain the citation badges"
+        )
+
+    def test_citations_are_rendered(self):
+        source = _read("features/assistant/AssistantWidget.tsx")
+        assert "cited" in source and "Badge" in source, (
+            "the panel does not render the cited check ids the backend returns"
+        )
+
+
+class TestDashboardCheckCounts:
+    """The dashboard restates how many checks exist, and that sentence went stale.
+
+    It read "Eleven checks ... six from the RBI Merchant Due Diligence checklist" for as long as
+    RBI-007 had existed. The landing page's counts were guarded; this sentence was not, which is
+    the only reason it drifted.
+    """
+
+    def test_the_counts_match_the_knowledge_base(self):
+        source = _read("pages/DashboardHome.tsx")
+        rbi, pci = len(kb.rbi_checks()), len(kb.pci_checks())
+
+        match = re.search(
+            r"(\d+) checks with formal identifiers:\s*(\d+) from the RBI[\s\S]{0,80}?(\d+) from PCI",
+            source,
+        )
+        assert match, "the dashboard no longer states check counts in the expected shape"
+
+        total, stated_rbi, stated_pci = (int(g) for g in match.groups())
+        assert (total, stated_rbi, stated_pci) == (rbi + pci, rbi, pci), (
+            f"the dashboard says {total} checks ({stated_rbi} RBI, {stated_pci} PCI); the "
+            f"knowledge base declares {rbi + pci} ({rbi} RBI, {pci} PCI)"
+        )
+
+
+class TestTheChecksPageCanGetBack:
+    """Opened from the dashboard, the only way back used to be out of the app entirely."""
+
+    def test_the_back_link_is_not_hardcoded_home(self):
+        source = _read("pages/ChecksPage.tsx")
+        assert "backTo" in source, "the checks page back link is not derived from where you came from"
+
+    def test_the_dashboard_says_where_it_linked_from(self):
+        source = _read("pages/DashboardHome.tsx")
+        assert "from: '/dashboard'" in source, (
+            "the dashboard links to /checks without saying where the reader came from, so the "
+            "checks page cannot send them back"
+        )
