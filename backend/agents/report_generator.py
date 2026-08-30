@@ -125,6 +125,18 @@ def _compliance_gaps(compliance) -> tuple[list[GapItem], list[GapItem]]:
     return critical, warnings
 
 
+def _headline(message: str, limit: int = 80) -> str:
+    """Shorten a finding for a gap title without cutting a word in half.
+
+    A hard slice at 80 produced titles ending "review whether the", which reads as a bug on
+    screen. The full text is always on the gap's description.
+    """
+    if len(message) <= limit:
+        return message
+    clipped = message[:limit].rsplit(" ", 1)[0].rstrip(" ,;:(")
+    return f"{clipped}..."
+
+
 def _pci_gaps(pci) -> tuple[list[GapItem], list[GapItem]]:
     critical, warnings = [], []
     if pci is None:
@@ -136,7 +148,7 @@ def _pci_gaps(pci) -> tuple[list[GapItem], list[GapItem]]:
     for issue in pci.issues:
         check = knowledge.pci_check(issue.check_id)
         gap = GapItem(
-            title=f"PCI: {issue.message[:80]}",
+            title=f"PCI: {_headline(issue.message)}",
             description=issue.message,
             severity=issue.severity,
             category="pci",

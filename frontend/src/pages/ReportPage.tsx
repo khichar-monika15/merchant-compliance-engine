@@ -1,11 +1,11 @@
 import { useEffect } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Download, FileText } from 'lucide-react'
+import { ArrowLeft, Download, FileJson, FileText, Printer } from 'lucide-react'
 
-import { Badge, Button, Card, Spinner, Tabs } from '@/components/ui'
+import { Badge, Button, Card, cn, Menu, Spinner, Tabs } from '@/components/ui'
 import type { TabItem } from '@/components/ui'
 import { ScoreRing } from '@/features/report/ScoreRing'
-import { exportJson, exportMarkdown, siteFromReport } from '@/features/report/exportReport'
+import { exportJson, exportMarkdown, exportPdf, siteFromReport } from '@/features/report/exportReport'
 import { AuditTab } from '@/features/report/tabs/AuditTab'
 import { ComplianceTab } from '@/features/report/tabs/ComplianceTab'
 import { IntegrationTab } from '@/features/report/tabs/IntegrationTab'
@@ -15,6 +15,15 @@ import { PoliciesTab } from '@/features/report/tabs/PoliciesTab'
 import { SecurityTab } from '@/features/report/tabs/SecurityTab'
 import { attachToJob } from '@/scan/scanSocket'
 import { useScan } from '@/scan/scanStore'
+
+/** One tab's content. Mounted whether or not it is the open tab, so print gets all of them. */
+function Panel({ id, active, children }: { id: string; active: string; children: React.ReactNode }) {
+  return (
+    <section className={cn(id !== active && 'hidden print:mb-6 print:block')} aria-hidden={id !== active}>
+      {children}
+    </section>
+  )
+}
 
 export function ReportPage() {
   const { jobId } = useParams<{ jobId: string }>()
@@ -94,47 +103,87 @@ export function ReportPage() {
             </div>
           </div>
 
-          <div className="flex shrink-0 gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              leadingIcon={<Download className="h-3.5 w-3.5" />}
-              onClick={() => exportJson(report, merchant, jobId)}
-            >
-              JSON
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              leadingIcon={<FileText className="h-3.5 w-3.5" />}
-              onClick={() => exportMarkdown(report, merchant, jobId)}
-            >
-              Markdown
-            </Button>
+          <div className="flex shrink-0 gap-2" data-print-hide>
+            <Menu
+              label="Download report"
+              trigger={
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  leadingIcon={<Download className="h-3.5 w-3.5" />}
+                >
+                  Download
+                </Button>
+              }
+              items={[
+                {
+                  label: 'PDF',
+                  description: 'Opens your print dialog, choose Save as PDF',
+                  icon: <Printer className="h-4 w-4" />,
+                  onSelect: exportPdf,
+                },
+                {
+                  label: 'Markdown',
+                  description: 'The full report as text',
+                  icon: <FileText className="h-4 w-4" />,
+                  onSelect: () => exportMarkdown(report, merchant, jobId),
+                },
+                {
+                  label: 'JSON',
+                  description: 'Every field, for another tool to read',
+                  icon: <FileJson className="h-4 w-4" />,
+                  onSelect: () => exportJson(report, merchant, jobId),
+                },
+              ]}
+            />
           </div>
         </div>
       </Card>
 
-      <Tabs
-        tabs={tabs}
-        active={active}
-        onChange={(id) => setParams(id === 'overview' ? {} : { tab: id }, { replace: true })}
-      />
+      <div data-print-hide>
+        <Tabs
+          tabs={tabs}
+          active={active}
+          onChange={(id) => setParams(id === 'overview' ? {} : { tab: id }, { replace: true })}
+        />
+      </div>
 
+      {/*
+        Every panel stays mounted and the inactive ones are hidden, so printing reveals the whole
+        report rather than whichever tab happened to be open. On screen this is unchanged.
+      */}
       <div className="animate-fade-in">
-        {active === 'overview' && <OverviewTab report={report} />}
-        {active === 'compliance' && report.compliance_details && (
-          <ComplianceTab compliance={report.compliance_details} />
+        <Panel id="overview" active={active}>
+          <OverviewTab report={report} />
+        </Panel>
+        {report.compliance_details && (
+          <Panel id="compliance" active={active}>
+            <ComplianceTab compliance={report.compliance_details} />
+          </Panel>
         )}
-        {active === 'security' && report.pci_details && <SecurityTab pci={report.pci_details} />}
-        {active === 'kyc' && report.kyc_details && <KycTab kyc={report.kyc_details} />}
-        {active === 'integration' && report.integration_details && (
-          <IntegrationTab integration={report.integration_details} />
+        {report.pci_details && (
+          <Panel id="security" active={active}>
+            <SecurityTab pci={report.pci_details} />
+          </Panel>
         )}
-        {active === 'policies' && report.generated_policies && (
-          <PoliciesTab policies={report.generated_policies} />
+        {report.kyc_details && (
+          <Panel id="kyc" active={active}>
+            <KycTab kyc={report.kyc_details} />
+          </Panel>
         )}
-        {active === 'audit' && <AuditTab log={report.audit_trail ?? []} />}
+        {report.integration_details && (
+          <Panel id="integration" active={active}>
+            <IntegrationTab integration={report.integration_details} />
+          </Panel>
+        )}
+        {report.generated_policies && (
+          <Panel id="policies" active={active}>
+            <PoliciesTab policies={report.generated_policies} />
+          </Panel>
+        )}
+        <Panel id="audit" active={active}>
+          <AuditTab log={report.audit_trail ?? []} />
+        </Panel>
       </div>
     </div>
   )

@@ -92,3 +92,30 @@ export function exportMarkdown(
     'text/markdown',
   )
 }
+
+/**
+ * Hand the report to the browser's own print dialog, where "Save as PDF" is a destination.
+ *
+ * No PDF library: the report is already a single column of text, and a print stylesheet renders
+ * it on paper better than a canvas snapshot would. It also keeps the text selectable and the
+ * links live, which a rasterised export loses.
+ *
+ * Every tab panel is in the DOM already and merely hidden, so print CSS reveals them all and
+ * the reader gets the whole report rather than whichever tab happened to be open.
+ */
+export function exportPdf(): void {
+  document.body.classList.add('printing')
+
+  const cleanup = () => {
+    document.body.classList.remove('printing')
+    window.removeEventListener('afterprint', cleanup)
+  }
+  window.addEventListener('afterprint', cleanup)
+
+  // One frame so the print-only layout is applied before the dialog snapshots the page.
+  requestAnimationFrame(() => {
+    window.print()
+    // Safari does not always fire afterprint, so this is the belt to that braces.
+    setTimeout(cleanup, 1000)
+  })
+}

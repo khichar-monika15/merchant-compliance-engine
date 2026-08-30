@@ -464,3 +464,33 @@ class TestAuditLogAccumulatesOnce:
 
         duplicates = sorted({a for a in merged if merged.count(a) > 1})
         assert not duplicates, f"these agents would log more than once: {duplicates}"
+
+
+class TestGapTitlesReadAsSentences:
+    """A title cut at a fixed character count ended mid-word on screen.
+
+    "PCI: 1 third-party social script(s) loaded (connect.facebook.net), review whether the" is
+    what a reviewer saw in the demo. The full text is on the description; the title just has to
+    stop somewhere sensible.
+    """
+
+    def test_a_long_message_stops_at_a_word(self):
+        from backend.agents.report_generator import _headline
+
+        message = (
+            "1 third-party social script(s) loaded (connect.facebook.net), review whether they "
+            "belong on a payment page (PCI 6.4.3)"
+        )
+        title = _headline(message)
+
+        assert title.endswith("...")
+        assert len(title) <= 83
+        assert not title.rstrip(".").endswith(("the", "a", "of", "and", ","))
+        # The word it stops on must be a whole word from the message.
+        last = title.rstrip(".").rsplit(" ", 1)[-1]
+        assert last in message.split(), f"{last!r} is not a whole word from the message"
+
+    def test_a_short_message_is_untouched(self):
+        from backend.agents.report_generator import _headline
+
+        assert _headline("CSP header missing (PCI 11.6.1)") == "CSP header missing (PCI 11.6.1)"

@@ -56,3 +56,64 @@
     outline-offset: 2px;
   }
 }
+
+/**
+ * Print, which is also how "Save as PDF" reaches the page.
+ *
+ * The app is a dark UI, and printing it as-is wastes a cartridge and reads badly on paper, so
+ * this inverts to black on white, drops navigation and controls, and stops cards breaking
+ * across pages. `data-print-hide` marks anything that is interaction rather than content.
+ */
+@media print {
+  @page {
+    margin: 16mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  body * {
+    background-color: transparent !important;
+    box-shadow: none !important;
+    color: #111 !important;
+    border-color: #ccc !important;
+  }
+
+  [data-print-hide],
+  nav,
+  button {
+    display: none !important;
+  }
+
+  /* Cards, list rows and table rows should not be split down the middle by a page break. */
+  article,
+  section,
+  li,
+  tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  h1,
+  h2,
+  h3 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  a[href^='http']::after {
+    content: ' (' attr(href) ')';
+    font-size: 0.75em;
+    word-break: break-all;
+  }
+
+  /* Panels that scroll on screen must show everything on paper. */
+  .overflow-x-auto,
+  .overflow-y-auto,
+  .overflow-auto {
+    overflow: visible !important;
+  }
+}
