@@ -99,8 +99,8 @@ export function MerchantScanForm({
 
       <Card>
         <CardHeader
-          title="KYC documents"
-          subtitle="Enter each name exactly as it appears on the document. Differences are the point."
+          title="KYC names"
+          subtitle="Enter each name exactly as it appears. Do not tidy them up: differences are the point."
         />
         <div className="grid gap-4 sm:grid-cols-2">
           <Input
@@ -137,6 +137,16 @@ export function MerchantScanForm({
             ))}
           </Select>
         </div>
+
+        {/* Says out loud where these three strings come from in production, so nobody reads typed
+            input as a claim that MCIE verified a PAN. The comparison is the part that is real. */}
+        <p className="mt-4 border-t border-surface-border pt-3 text-caption text-text-tertiary">
+          In production these three names are read, not typed: the PAN name from the Income Tax
+          verification API, the GST legal name from the GSTN API, and the bank account name from a
+          penny drop, which is how Razorpay itself confirms an account holder. MCIE has no access to
+          any of those, so you type them. What it does with them is unchanged, and it is the part
+          that decides an application: normalising the names and reporting which pairs disagree.
+        </p>
       </Card>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

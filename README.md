@@ -315,10 +315,20 @@ Zustand. Razorpay Python SDK in test mode. AWS Bedrock or Anthropic for the mode
   compliance levels. They are not a claim about accuracy on real merchant websites. Three live
   storefronts were scanned to find the bugs above; three sites is enough to break a crawler and
   nowhere near enough to calibrate a grade.
-- **KYC is not exercised by a real-site scan.** The three document names are typed by the merchant
-  and nothing on the website can confirm them, so passing the same public legal name three times
-  scores a clean 100 that means nothing. On the synthetic sites the mismatches are planted, which
-  is the only place that axis is actually tested.
+- **KYC names are typed, and in production they would not be.** In a real onboarding flow all three
+  are read from an authority rather than entered: the PAN name from the Income Tax verification API,
+  the GST legal name from the GSTN API, and the bank account name from a penny drop, which is how
+  [Razorpay itself confirms an account holder](https://razorpay.com/docs/api/x/account-validation/).
+  All three need KYC-registered API access and commercial agreements, and the penny drop moves real
+  money, so none was available here. Document upload with OCR was considered and rejected: it is the
+  fallback for when no API exists, it reads about 96% where an API reads 99% and also proves the
+  record exists, and a PDF can be edited in any image editor. So MCIE takes the strings and does the
+  half that is real, which is the half that decides applications: normalising the names and naming
+  which pairs disagree. That is the same comparison a verification API's name-match step performs on
+  the values it fetched. The engine never claims to have verified a PAN, and the scan form says so.
+- **So a real-site scan does not exercise KYC at all.** Passing the same public legal name three
+  times scores a clean 100 that means nothing. The synthetic sites carry planted mismatches, which is
+  the only place that axis is genuinely tested.
 - **A policy the site publishes nowhere findable is reported missing.** Discovery reads the
   homepage links, the sitemap, and a list of conventional URLs. A policy that is none of those,
   reachable only from inside a checkout flow, will not be found. That is a false negative, and it
