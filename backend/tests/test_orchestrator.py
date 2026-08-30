@@ -93,12 +93,21 @@ class TestRouting:
         assert _route_after_crawl(state) == "abort"
 
     def test_partial_crawl_still_analysed(self):
+        """A crawl that got some pages is analysed. The route fans out to every analyser.
+
+        Asserted against ANALYSERS rather than a written out list so the guard cannot drift from
+        the graph if an analyser is ever added or renamed.
+        """
+        from backend.agents.orchestrator import ANALYSERS
+
         state = {"current_phase": "crawl_failed", "crawl_result": {"pages_found": {"u": "<html>"}}}
-        assert _route_after_crawl(state) == "parallel_analysis"
+        assert _route_after_crawl(state) == [name for name, _ in ANALYSERS]
 
     def test_healthy_crawl_analysed(self):
+        from backend.agents.orchestrator import ANALYSERS
+
         state = {"current_phase": "crawled", "crawl_result": {"pages_found": {"u": "<html>"}}}
-        assert _route_after_crawl(state) == "parallel_analysis"
+        assert _route_after_crawl(state) == [name for name, _ in ANALYSERS]
 
     def test_policy_generation_when_a_policy_is_thin(self):
         compliance = {
@@ -572,4 +581,166 @@ class TestTheCrawlResultCarriesTheEntryUrl:
         assert str(new_port) in crawl.entry_url, (
             f"the entry URL is the one the merchant typed, not where it resolved: "
             f"{crawl.entry_url}"
+        )
+
+
+class TestTheFourAnalysersAreRealGraphNodes:
+    """The multi-agent claim has to be true in the graph, not only in the prose.
+
+    The four analysers ran inside one `parallel_analysis` node via `asyncio.gather`. That is
+    concurrent and it works, but the graph LangGraph compiles has a single node where the README
+    diagram shows four, so anyone reading the code finds the architecture is narrated rather than
+    built. The README also claimed this avoided LangGraph 0.2's fragile fan-out convergence, which
+    was never measured: `asyncio.gather` is in the first commit of the pipeline, so it predates any
+    fan-out ever being attempted.
+
+    Fan-out is safe here and the state was already shaped for it. The four write four distinct
+    result keys so no two ever write the same channel, `audit_log` and `errors` carry append
+    reducers for the writes they do share, and none of them touches `current_phase`.
+    """
+
+    ANALYSERS = {"audit_compliance", "scan_pci", "validate_kyc", "advise_integration"}
+
+    def test_each_analyser_is_its_own_node(self):
+        from backend.agents.orchestrator import build_workflow
+
+        nodes = set(build_workflow().get_graph().nodes)
+        missing = self.ANALYSERS - nodes
+        assert not missing, (
+            f"the analysers are not separate nodes, so the graph does not fan out: missing "
+            f"{sorted(missing)}. Nodes present: {sorted(nodes)}"
+        )
+
+    def test_the_crawl_fans_out_to_all_four(self):
+        """Four branches leaving the crawl is what makes it parallel rather than sequential."""
+        from backend.agents.orchestrator import build_workflow
+
+        graph = build_workflow().get_graph()
+        targets = {e.target for e in graph.edges if e.source == "crawl_website"}
+        assert self.ANALYSERS <= targets, (
+            f"the crawl does not branch to all four analysers, it goes to {sorted(targets)}"
+        )
+
+    def test_all_four_converge_before_the_report(self):
+        """A join is what stops the report being written from a half-finished analysis."""
+        from backend.agents.orchestrator import build_workflow
+
+        graph = build_workflow().get_graph()
+        for analyser in self.ANALYSERS:
+            onward = {e.target for e in graph.edges if e.source == analyser}
+            assert onward, f"{analyser} is a dead end, its result never reaches the report"
+
+
+class TestFanOutPreservesHowTheAnalysersBehave:
+    """Characterisation guards for the fan-out refactor: these pass before and after.
+
+    Splitting one node into four must not quietly make the analysers sequential, and must not
+    lose the graceful failure the pipeline already had, where one analyser breaking still leaves
+    the other three in the report.
+    """
+
+    @staticmethod
+    def _canned_crawl():
+        return {
+            "crawl_result": {
+                "entry_url": "https://shop.example/",
+                "pages_found": {"https://shop.example/": "<html><body><h1>Shop</h1></body></html>"},
+                "scripts_found": [],
+                "http_headers": {"https://shop.example/": {}},
+                "identified_pages": {},
+                "tech_stack_signals": {"static_html": ["none"]},
+                "crawl_errors": [],
+                "pages_crawled": 1,
+            },
+            "current_phase": "crawl_complete",
+            "audit_log": [],
+            "errors": [],
+        }
+
+    @staticmethod
+    def _merchant_state():
+        from backend.agents.orchestrator import _state_to_dict
+        from backend.models.schemas import EngineState, MerchantInput
+
+        return _state_to_dict(EngineState(merchant_input=MerchantInput(
+            website_url="https://shop.example",
+            pan_name="Artisan Weaves Private Limited",
+            gst_legal_name="ARTISAN WEAVES PRIVATE LIMITED",
+            bank_account_name="Artisan Weaves Private Limited",
+            business_type="ecommerce",
+        )))
+
+    async def test_the_analysers_start_together_rather_than_in_turn(self, monkeypatch):
+        """Four 0.4s analysers run in about 0.4s if parallel and about 1.6s if not."""
+        import asyncio
+        import time
+
+        from backend.agents import (
+            compliance_auditor, integration_advisor, kyc_validator, pci_scanner, webcrawler,
+        )
+        from backend.agents.orchestrator import build_workflow
+
+        starts: list[float] = []
+
+        def instrument(module, key):
+            async def fake(state):
+                starts.append(time.perf_counter())
+                await asyncio.sleep(0.4)
+                return {key: None, "audit_log": [], "errors": []}
+            monkeypatch.setattr(module, "run", fake)
+
+        for module, key in (
+            (compliance_auditor, "compliance_result"), (pci_scanner, "pci_result"),
+            (kyc_validator, "kyc_result"), (integration_advisor, "integration_result"),
+        ):
+            instrument(module, key)
+
+        async def fake_crawl(state):
+            return self._canned_crawl()
+
+        monkeypatch.setattr(webcrawler, "run", fake_crawl)
+
+        t0 = time.perf_counter()
+        await build_workflow().ainvoke(self._merchant_state())
+        elapsed = time.perf_counter() - t0
+
+        assert len(starts) == 4, f"only {len(starts)} analysers ran"
+        assert max(starts) - min(starts) < 0.3, (
+            f"the analysers started {max(starts) - min(starts):.2f}s apart, so they are running "
+            "one after another rather than together"
+        )
+        assert elapsed < 1.2, f"four 0.4s analysers took {elapsed:.2f}s, which is sequential"
+
+    async def test_one_analyser_failing_leaves_the_other_three(self, monkeypatch):
+        """Graceful failure is the property, and a node that raises must not take the graph down."""
+        from backend.agents import (
+            compliance_auditor, integration_advisor, kyc_validator, pci_scanner, webcrawler,
+        )
+        from backend.agents.orchestrator import build_workflow
+
+        async def boom(state):
+            raise RuntimeError("PCI scanner exploded")
+
+        monkeypatch.setattr(pci_scanner, "run", boom)
+        for module, key in (
+            (compliance_auditor, "compliance_result"),
+            (kyc_validator, "kyc_result"),
+            (integration_advisor, "integration_result"),
+        ):
+            async def fake(state, _k=key):
+                return {_k: None, "audit_log": [], "errors": []}
+            monkeypatch.setattr(module, "run", fake)
+
+        async def fake_crawl(state):
+            return self._canned_crawl()
+
+        monkeypatch.setattr(webcrawler, "run", fake_crawl)
+
+        final = await build_workflow().ainvoke(self._merchant_state())
+
+        assert any("PCI" in e or "pci" in e for e in final.get("errors", [])), (
+            f"the failure was not recorded as an error: {final.get('errors')}"
+        )
+        assert final.get("readiness_report") is not None, (
+            "one analyser raising took down the whole pipeline"
         )

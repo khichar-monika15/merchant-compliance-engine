@@ -76,25 +76,31 @@ async def _crawl(state: dict) -> dict:
     return _serialise(await webcrawler.run(_dict_to_state(state)))
 
 
-async def _parallel_analysis(state: dict) -> dict:
-    """Run compliance, PCI, KYC and integration concurrently, combining their partial updates."""
-    s = _dict_to_state(state)
-    agents = (compliance_auditor, pci_scanner, kyc_validator, integration_advisor)
-    results = await asyncio.gather(*(a.run(s) for a in agents), return_exceptions=True)
+# The four analysers, each its own branch of the graph. They fan out from the crawl and converge
+# on `analysis_complete`, which is safe because no two of them write the same channel: each owns
+# one result key, `audit_log` and `errors` carry append reducers for the writes they share, and
+# none of them touches `current_phase`. That is set once at the join.
+ANALYSERS: tuple[tuple[str, Any], ...] = (
+    ("audit_compliance", compliance_auditor),
+    ("scan_pci", pci_scanner),
+    ("validate_kyc", kyc_validator),
+    ("advise_integration", integration_advisor),
+)
 
-    update: dict[str, Any] = {"current_phase": "parallel_complete", "audit_log": [], "errors": []}
-    for agent, result in zip(agents, results):
-        if isinstance(result, BaseException):
-            # Each agent already handles its own errors, so reaching here means a genuine bug
-            name = agent.__name__.rsplit(".", 1)[-1]
-            update["errors"].append(f"{name} raised {type(result).__name__}: {result}")
-            continue
-        for key, value in _serialise(result).items():
-            if key in ("audit_log", "errors"):
-                update[key].extend(value)
-            else:
-                update[key] = value
-    return update
+
+async def _run_analyser(agent, state: dict) -> dict:
+    """One analyser as a graph node, holding on to the graceful failure the pipeline had.
+
+    Every agent already catches its own exceptions and returns a partial state, so arriving in
+    this except is a genuine bug in the agent rather than a scan that went wrong. It is still
+    caught: a node that raises would abort the whole graph and lose the three analyses that
+    succeeded, which is precisely the behaviour that must not change.
+    """
+    try:
+        return _serialise(await agent.run(_dict_to_state(state)))
+    except BaseException as e:  # noqa: BLE001 - deliberately broad, see docstring
+        name = agent.__name__.rsplit(".", 1)[-1]
+        return {"errors": [f"{name} raised {type(e).__name__}: {e}"], "audit_log": []}
 
 
 async def _generate_policies(state: dict) -> dict:
@@ -116,7 +122,8 @@ def _route_after_crawl(state: dict) -> str:
     crawl_pages = (crawl or {}).get("pages_found", {}) if isinstance(crawl, dict) else {}
     if not crawl_pages:
         return "abort"
-    return "parallel_analysis"
+    # A list fans out: LangGraph runs every named node in the same superstep.
+    return [name for name, _ in ANALYSERS]
 
 
 def _route_after_validate(state: dict) -> str:
@@ -181,17 +188,32 @@ def build_workflow(progress_fn=None):
         await _emit("WebCrawler", "Website crawl complete", 30, done=True)
         return result
 
-    async def _parallel_node(state: dict) -> dict:
-        await _emit("ComplianceAuditor", "Auditing RBI policy compliance", 40)
-        await _emit("PCIScanner", "Scanning PCI DSS surface", 40)
-        await _emit("KYCValidator", "Validating KYC name consistency", 40)
-        await _emit("IntegrationAdvisor", "Detecting tech stack", 40)
-        result = await _parallel_analysis(state)
-        await _emit("ComplianceAuditor", "Compliance audit complete", 60, done=True)
-        await _emit("PCIScanner", "PCI DSS scan complete", 62, done=True)
-        await _emit("KYCValidator", "KYC validation complete", 64, done=True)
-        await _emit("IntegrationAdvisor", "Integration advisory complete", 65, done=True)
-        return result
+    # Progress now belongs to the node that does the work, so the timeline reports each analyser
+    # finishing when it actually finished rather than when the slowest of the four did.
+    ANALYSER_PROGRESS = {
+        "audit_compliance": ("ComplianceAuditor", "Auditing RBI policy compliance",
+                             "Compliance audit complete", 60),
+        "scan_pci": ("PCIScanner", "Scanning PCI DSS surface", "PCI DSS scan complete", 62),
+        "validate_kyc": ("KYCValidator", "Validating KYC name consistency",
+                         "KYC validation complete", 64),
+        "advise_integration": ("IntegrationAdvisor", "Detecting tech stack",
+                               "Integration advisory complete", 65),
+    }
+
+    def _analyser_node(node_name: str, agent):
+        label, starting, finished, pct = ANALYSER_PROGRESS[node_name]
+
+        async def node(state: dict) -> dict:
+            await _emit(label, starting, 40)
+            result = await _run_analyser(agent, state)
+            await _emit(label, finished, pct, done=True)
+            return result
+
+        return node
+
+    async def _analysis_complete(state: dict) -> dict:
+        """The join. Nothing runs here; it exists so all four finish before routing decides."""
+        return {"current_phase": "parallel_complete"}
 
     async def _policies_node(state: dict) -> dict:
         await _emit("PolicyGenerator", "Generating missing policies", 75)
@@ -210,7 +232,9 @@ def build_workflow(progress_fn=None):
     workflow = StateGraph(GraphState)
     workflow.add_node("validate_input", _validate_input)
     workflow.add_node("crawl_website", _crawl_node)
-    workflow.add_node("parallel_analysis", _parallel_node)
+    for node_name, agent in ANALYSERS:
+        workflow.add_node(node_name, _analyser_node(node_name, agent))
+    workflow.add_node("analysis_complete", _analysis_complete)
     workflow.add_node("generate_policies", _policies_node)
     workflow.add_node("generate_report", _report_node)
 
@@ -224,11 +248,16 @@ def build_workflow(progress_fn=None):
     workflow.add_conditional_edges(
         "crawl_website",
         _route_after_crawl,
-        {"parallel_analysis": "parallel_analysis", "abort": END},
+        {**{name: name for name, _ in ANALYSERS}, "abort": END},
     )
 
+    # Every analyser leads to the join, so the report cannot be written from a half-finished
+    # analysis: LangGraph waits for all four before `analysis_complete` runs.
+    for node_name, _ in ANALYSERS:
+        workflow.add_edge(node_name, "analysis_complete")
+
     workflow.add_conditional_edges(
-        "parallel_analysis",
+        "analysis_complete",
         _route_after_parallel,
         {"generate_policies": "generate_policies", "generate_report": "generate_report"},
     )

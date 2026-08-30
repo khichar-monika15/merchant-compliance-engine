@@ -34,7 +34,7 @@ is needed for any of this.** Every score in the report is produced by rules; the
 policy quality when a credential is present and the report says which path it took.
 
 ```bash
-uv run pytest backend/tests/                       # 570 tests, no credentials needed
+uv run pytest backend/tests/                       # 575 tests, no credentials needed
 uv run python -m backend.tests.validate_ground_truth   # 4/4 against recorded expectations
 ```
 
@@ -78,38 +78,48 @@ in the score is unexplained.
 
 ## Architecture
 
-Supervisor-worker on a LangGraph `StateGraph`. The four independent analysers run concurrently
-inside one node via `asyncio.gather()`, which keeps the graph linear and avoids LangGraph 0.2's
-fragile fan-out/join convergence.
+Supervisor-worker on a LangGraph `StateGraph`. The crawl fans out to four analyser nodes that run
+in one superstep and converge on a join before the report is written. This diagram is the compiled
+graph, not a drawing of one: a test asserts each analyser is its own node, that the crawl branches
+to all four, and that none of them is a dead end.
 
 ```mermaid
 graph LR
   A[validate_input] --> B[crawl_website]
-  B -->|pages found| C[parallel_analysis]
   B -->|site unreachable| G([END])
-  C -->|gaps found| E[generate_policies]
-  C -->|no gaps| F[generate_report]
+  B --> C1[audit_compliance<br/>RBI MDD]
+  B --> C2[scan_pci<br/>PCI DSS v4.0.1]
+  B --> C3[validate_kyc<br/>name matching]
+  B --> C4[advise_integration<br/>stack detection]
+  C1 --> J[analysis_complete]
+  C2 --> J
+  C3 --> J
+  C4 --> J
+  J -->|gaps found| E[generate_policies]
+  J -->|no gaps| F[generate_report]
   E --> F
   F --> G([END])
-
-  subgraph C [parallel_analysis · asyncio.gather]
-    C1[ComplianceAuditor<br/>RBI MDD]
-    C2[PCIScanner<br/>PCI DSS v4.0.1]
-    C3[KYCValidator<br/>name matching]
-    C4[IntegrationAdvisor<br/>stack detection]
-  end
 ```
 
-Every agent exports `async run(state) -> dict` returning only the keys it changed, so each is
-independently testable. An agent that raises is caught, recorded in `errors` and the audit log,
-and does not block the others.
+Fan-out is safe here because the four never write the same channel: each owns one result key,
+`audit_log` and `errors` carry `operator.add` reducers for the writes they share, and only the join
+sets `current_phase`. Every agent exports `async run(state) -> dict` returning just the keys it
+changed, so each is independently testable, and a node that raises is caught, recorded in `errors`,
+and leaves the other three analyses in the report.
+
+This used to be one node calling the four through `asyncio.gather()`, which was concurrent and
+worked, but meant the architecture was narrated rather than built. The README defended it as
+avoiding LangGraph 0.2's fragile fan-out convergence; that claim was never tested, and
+`asyncio.gather` is in the first commit of the pipeline, so it predates any fan-out being
+attempted. Converting it settled the question by measurement: fan-out converges correctly on the
+pinned version, and ground truth did not move.
 
 ### Scoring
 
 | Axis | Weight | Source |
 |---|---|---|
 | RBI compliance | 40% | Applicable checks in `rbi_mdd_checklist.json`. Five for every merchant, plus RBI-007 shipping for those who deliver goods. RBI-006 name consistency is scored under KYC |
-| KYC consistency | 25% | How many of the three document pairs agree after normalisation |
+| KYC consistency | 25% | Each of the three name pairs is normalised by rules RBI-006 declares, scored with RapidFuzz `WRatio`, then run past named mismatch detectors the same file declares: ampersand, abbreviation, spacing. A detector firing fails the pair **regardless of similarity**, which is how `Pvt. Ltd.` against `Private Limited` is caught at 95% similar, and the report names which pattern fired rather than just the score |
 | PCI DSS surface | 20% | Four of the five checks in `pci_dss_surface_checks.json` carry points. PCI-003 classifies every third-party script and raises warnings, notably session recorders that can capture card entry, without taking points from the others |
 | Integration readiness | 15% | Stack detected plus starter code, with a live test order as a bonus |
 
