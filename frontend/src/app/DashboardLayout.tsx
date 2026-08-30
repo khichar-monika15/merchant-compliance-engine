@@ -84,7 +84,10 @@ export function DashboardLayout() {
 
   return (
     <div className="min-h-screen bg-surface">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 border-r border-surface-border bg-surface-raised md:block">
+      <aside
+        data-print-hide
+        className="fixed inset-y-0 left-0 z-40 hidden w-60 border-r border-surface-border bg-surface-raised md:block"
+      >
         {sidebar}
       </aside>
 
@@ -94,14 +97,22 @@ export function DashboardLayout() {
             className="fixed inset-0 z-40 bg-black/60 md:hidden"
             onClick={() => setMenuOpen(false)}
           />
-          <aside className="fixed inset-y-0 left-0 z-50 w-60 border-r border-surface-border bg-surface-raised md:hidden">
+          <aside
+            data-print-hide
+            className="fixed inset-y-0 left-0 z-50 w-60 border-r border-surface-border bg-surface-raised md:hidden"
+          >
             {sidebar}
           </aside>
         </>
       )}
 
-      <div className="md:pl-60">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-surface-border bg-surface-raised/95 px-4 backdrop-blur">
+      {/* The shell is a fixed sidebar plus a 240px left inset here. On paper that leaves an
+          empty column and pushes the report off the right edge, so print resets it. */}
+      <div className="md:pl-60" data-print-main>
+        <header
+          data-print-hide
+          className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-surface-border bg-surface-raised/95 px-4 backdrop-blur"
+        >
           <button
             type="button"
             onClick={() => setMenuOpen((v) => !v)}

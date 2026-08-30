@@ -57,6 +57,7 @@ export function CodeBlock({
       <div className="flex items-center justify-between border-b border-surface-border bg-surface-raised px-3 py-2">
         <span className="text-overline uppercase text-text-tertiary">{title ?? language}</span>
         <button
+          data-print-hide
           type="button"
           onClick={copy}
           className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-caption text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"

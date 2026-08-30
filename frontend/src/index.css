@@ -82,10 +82,34 @@
     border-color: #ccc !important;
   }
 
+  /*
+   * Only chrome is hidden. `button` used to be in this list, which silently deleted the entire
+   * gap list from the PDF: each finding is an accordion whose row is a <button>, so the most
+   * important part of the report printed as an empty panel. Controls carry data-print-hide.
+   */
   [data-print-hide],
-  nav,
-  button {
+  nav {
     display: none !important;
+  }
+
+  /*
+   * The dashboard shell is a fixed sidebar with the content inset 240px to clear it, plus a
+   * sticky header. Printed as-is that produced an empty left column, a header stamped over the
+   * first page, and the report running off the right edge. Undo the shell so the page starts at
+   * the paper's edge.
+   */
+  [data-print-main] {
+    padding-left: 0 !important;
+  }
+
+  .fixed,
+  .sticky {
+    position: static !important;
+  }
+
+  /* A viewport-height shell forces a mostly blank first page. */
+  .min-h-screen {
+    min-height: 0 !important;
   }
 
   /* Cards, list rows and table rows should not be split down the middle by a page break. */
@@ -104,10 +128,20 @@
     page-break-after: avoid;
   }
 
-  a[href^='http']::after {
+  /*
+   * A link whose label is a word needs its target spelled out on paper. A link whose label is
+   * already the URL does not, and appending it printed "Found on <url> (<url>)".
+   */
+  a[href^='http']:not([data-print-bare])::after {
     content: ' (' attr(href) ')';
     font-size: 0.75em;
     word-break: break-all;
+  }
+
+  /* Every accordion is expanded on paper, so its open/closed chevron means nothing. */
+  [data-print-hide-icon],
+  li > button svg {
+    display: none !important;
   }
 
   /* Panels that scroll on screen must show everything on paper. */

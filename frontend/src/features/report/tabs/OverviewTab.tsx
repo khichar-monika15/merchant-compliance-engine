@@ -53,8 +53,9 @@ function GapRow({ gap }: { gap: GapItem }) {
         <span className="min-w-0 flex-1 text-body-sm text-text-primary">{gap.title}</span>
         <Badge variant={SEVERITY_VARIANT[gap.severity] ?? 'neutral'}>{gap.severity}</Badge>
       </button>
-      {open && (
-        <div className="space-y-2 px-4 pb-4 pl-11">
+      {/* Always mounted, hidden when collapsed, so a printed report carries the fix text and
+          the source link rather than a list of bare titles. */}
+      <div className={cn('space-y-2 px-4 pb-4 pl-11', !open && 'hidden print:block')}>
           <p className="text-body-sm text-text-secondary">{gap.description}</p>
           {gap.fix_suggestion && (
             <p className="rounded border border-surface-border bg-surface-raised p-3 text-body-sm text-text-secondary">
@@ -67,6 +68,7 @@ function GapRow({ gap }: { gap: GapItem }) {
             <p className="text-caption text-text-tertiary">
               Found on{' '}
               <a
+                data-print-bare
                 href={gap.source_url}
                 target="_blank"
                 rel="noreferrer"
@@ -76,8 +78,7 @@ function GapRow({ gap }: { gap: GapItem }) {
               </a>
             </p>
           )}
-        </div>
-      )}
+      </div>
     </li>
   )
 }

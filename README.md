@@ -18,7 +18,7 @@ uv sync
 uv run playwright install chromium
 
 cp .env.example .env      # see Configuration below
-uv run pytest backend/tests/            # 488 tests, no credentials needed
+uv run pytest backend/tests/            # 493 tests, no credentials needed
 uv run uvicorn backend.main:app --reload --port 8000
 cd frontend && npm install && npm run dev   # http://localhost:5173
 ```

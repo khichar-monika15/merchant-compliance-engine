@@ -79,6 +79,7 @@ export function ReportPage() {
     <div className="space-y-5">
       <Link
         to="/dashboard"
+        data-print-hide
         className="inline-flex items-center gap-1.5 text-body-sm text-text-secondary hover:text-text-primary"
       >
         <ArrowLeft className="h-4 w-4" />

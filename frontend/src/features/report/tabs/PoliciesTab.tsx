@@ -50,6 +50,7 @@ export function PoliciesTab({ policies }: { policies: PolicyGenResult }) {
           subtitle="Drafts for the merchant to review, not legal advice."
           action={
             <button
+              data-print-hide
               type="button"
               onClick={copy}
               className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-caption text-text-secondary hover:bg-surface-hover hover:text-text-primary"

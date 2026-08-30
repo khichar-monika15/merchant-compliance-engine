@@ -250,3 +250,86 @@ class TestNoDeadFrontendExports:
             "exported and referenced nowhere, so nothing honours the declaration: "
             f"{sorted(dead)}"
         )
+
+
+class TestThePrintedReportKeepsItsContent:
+    """The PDF export is the print stylesheet, so a CSS rule can silently delete report content.
+
+    `button { display: none }` in the print block removed the entire gap list from the PDF,
+    because each finding is an accordion whose row is a <button>. The most important part of the
+    report printed as an empty panel and nothing failed.
+    """
+
+    @staticmethod
+    def _print_block() -> str:
+        css = _read("index.css")
+        start = css.index("@media print")
+        depth, i = 0, start
+        while i < len(css):
+            if css[i] == "{":
+                depth += 1
+            elif css[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    return css[start:i + 1]
+            i += 1
+        raise AssertionError("@media print block is not balanced")
+
+    @staticmethod
+    def _hidden_selectors(block: str) -> set[str]:
+        """Every selector the print block sets to `display: none`.
+
+        Parsed from the rule bodies rather than by scanning lines: the first version of this test
+        matched a line equal to "button" and the real stylesheet writes "button {", so restoring
+        the bug left it green. Written by watching it fail.
+        """
+        hidden: set[str] = set()
+        # Comments first: they contain commas, and splitting a selector list on commas before
+        # removing them left "/*" and "*/" in different pieces, so nothing parsed cleanly.
+        block = re.sub(r"/\*.*?\*/", "", block, flags=re.S)
+        body = block[block.index("{") + 1:block.rindex("}")]
+        for selector, declarations in re.findall(r"([^{}]+)\{([^{}]*)\}", body):
+            if "display" in declarations and "none" in declarations:
+                for part in selector.split(","):
+                    cleaned = part.strip()
+                    if cleaned:
+                        hidden.add(cleaned)
+        return hidden
+
+    def test_print_does_not_blanket_hide_buttons(self):
+        hidden = self._hidden_selectors(self._print_block())
+        assert "button" not in hidden, (
+            "the print stylesheet hides every button. Each finding in the gap list is an "
+            f"accordion whose row is a <button>, so this empties the PDF. Hidden: {sorted(hidden)}"
+        )
+
+    def test_the_guard_can_see_what_the_stylesheet_hides(self):
+        """A parser that finds nothing would make the test above pass for the wrong reason."""
+        hidden = self._hidden_selectors(self._print_block())
+        assert "[data-print-hide]" in hidden, (
+            f"the selector parser did not find the rules it is meant to read: {sorted(hidden)}"
+        )
+
+    def test_print_undoes_the_dashboard_shell(self):
+        """A fixed sidebar and a 240px content inset print as an empty column."""
+        block = self._print_block()
+        for needed in ("[data-print-main]", ".fixed", ".sticky"):
+            assert needed in block, f"print stylesheet never neutralises {needed}"
+
+    def test_the_gap_detail_is_not_conditionally_mounted(self):
+        """CSS cannot reveal what React never rendered."""
+        source = _read("features/report/tabs/OverviewTab.tsx")
+        assert "print:block" in source, (
+            "the gap detail is not marked to appear in print, so the PDF gets bare titles"
+        )
+        assert "{open && (" not in source, (
+            "the gap detail is only mounted when expanded, so it cannot reach the PDF"
+        )
+
+    def test_every_report_tab_reaches_the_pdf(self):
+        """Only the open tab used to be mounted, so a PDF held one seventh of the report."""
+        source = _read("pages/ReportPage.tsx")
+        assert "print:block" in source, "inactive report tabs are not revealed for print"
+        assert "active === 'compliance' &&" not in source, (
+            "tabs are still mounted only when active, so the PDF holds one tab"
+        )

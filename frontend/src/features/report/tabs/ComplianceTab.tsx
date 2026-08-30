@@ -53,6 +53,7 @@ function CheckRow({ check, requirement }: { check: ComplianceCheck; requirement:
             </p>
             {check.url && (
               <a
+                data-print-bare
                 href={check.url}
                 target="_blank"
                 rel="noreferrer"
