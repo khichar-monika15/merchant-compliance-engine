@@ -239,6 +239,144 @@ class TestASiteThatNeverGoesIdleIsStillCrawled:
         assert elapsed < 25, f"the crawl still waited {elapsed:.1f}s for a page that loads instantly"
 
 
+class TestASiteThatRedirectsToAnotherDomainIsStillCrawled:
+    """A rebrand silently emptied the entire crawl, and the score went up rather than failing.
+
+    wowskinscienceindia.com answers 301 to buywow.in. The crawler pinned the base domain to the
+    URL the merchant typed, so after the redirect every link on the page read as off-domain and
+    was discarded: zero pages identified, zero policies found by link discovery, and the auditor
+    fell back to keyword-matching the homepage and graded the homepage as the refund policy. The
+    site scored 52 and a C, which is worse than failing, because a wrong answer in the generous
+    direction is the one a merchant will act on.
+
+    Host and port together make the domain here, so two loopback ports reproduce a cross-domain
+    redirect exactly.
+    """
+
+    @staticmethod
+    def _serve_old_domain_redirecting_to_new():
+        import threading
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+        refund = (
+            b"<!doctype html><html><body><h1>Refund Policy</h1><p>"
+            + (b"You may request a refund or cancellation within 30 days. "
+               b"Our return policy covers damaged goods. ") * 30
+            + b"</p></body></html>"
+        )
+
+        class NewHandler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                # Absolute hrefs, the way a hosted storefront emits them. A relative href would
+                # rejoin against the old base and survive the redirect by accident, which is what
+                # made the first version of this test pass against the bug.
+                home = (
+                    "<!doctype html><html><body><h1>Wow</h1>"
+                    f"<a href='http://{self.headers['Host']}/policies/refund-policy'>"
+                    "Refund Policy</a></body></html>"
+                ).encode()
+                path = self.path.split("?")[0].rstrip("/")
+                body = {"": home, "/policies/refund-policy": refund}.get(path)
+                self.send_response(200 if body else 404)
+                self.send_header("Content-Type", "text/html")
+                body = body or b"not found"
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *args):
+                pass
+
+        new = ThreadingHTTPServer(("127.0.0.1", 0), NewHandler)
+        threading.Thread(target=new.serve_forever, daemon=True).start()
+        new_port = new.server_address[1]
+
+        class OldHandler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(301)
+                self.send_header("Location", f"http://127.0.0.1:{new_port}{self.path}")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+
+            def log_message(self, *args):
+                pass
+
+        old = ThreadingHTTPServer(("127.0.0.1", 0), OldHandler)
+        threading.Thread(target=old.serve_forever, daemon=True).start()
+        return old, new, old.server_address[1]
+
+    async def test_links_on_the_new_domain_are_followed(self):
+        from backend.tools.crawler_tools import crawl_website
+
+        old, new, old_port = self._serve_old_domain_redirecting_to_new()
+        try:
+            result = await crawl_website(f"http://127.0.0.1:{old_port}", max_pages=10, timeout=20)
+        finally:
+            for s in (old, new):
+                s.shutdown()
+                s.server_close()
+
+        assert "refund" in result["identified_pages"], (
+            "after a redirect to another domain every link was discarded as off-domain, so the "
+            f"crawl found nothing: {result['identified_pages']}"
+        )
+        html = result["pages_found"].get(result["identified_pages"]["refund"], "")
+        assert "Refund Policy" in html, "the policy was identified but never fetched"
+
+
+class TestARedirectCannotSmuggleTheCrawlerInternally:
+    """Adopting the landed domain must not become an SSRF bypass.
+
+    The scan target is checked before the crawl, but a public site answering 302 to
+    169.254.169.254 would otherwise have its metadata read and returned inside the report.
+    """
+
+    def test_the_landed_url_is_re_checked(self):
+        from backend.tools.crawler_tools import url_refusal_reason
+
+        assert url_refusal_reason("http://169.254.169.254/latest/meta-data/", allow_loopback=True)
+
+    async def test_a_redirect_to_an_internal_host_is_refused_not_merely_unreachable(self):
+        """The refusal has to be the thing that stops it.
+
+        An earlier version of this test asserted only that no page came back, and it passed
+        against unguarded code because the metadata address is simply unroutable from a test
+        machine. A timeout is not a control. So this asserts the recorded reason names the
+        refusal, which is false unless the guard actually fired.
+        """
+        import threading
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+        from backend.tools.crawler_tools import crawl_website
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(302)
+                self.send_header("Location", "http://169.254.169.254/latest/meta-data/")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+
+            def log_message(self, *args):
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            result = await crawl_website(
+                f"http://127.0.0.1:{server.server_address[1]}", max_pages=5, timeout=15
+            )
+        finally:
+            server.shutdown()
+            server.server_close()
+
+        assert result["pages_found"] == {}, (
+            "a redirect to a link-local metadata endpoint was crawled and its content kept"
+        )
+        assert any("not a public address" in e for e in result["crawl_errors"]), (
+            f"the crawl stopped, but not because the address was refused: {result['crawl_errors']}"
+        )
+
+
 class TestPolicyPagesAreProbedNotOnlyDiscovered:
     """The declared url_patterns find pages, they do not merely label links.
 
@@ -312,6 +450,71 @@ class TestPolicyPagesAreProbedNotOnlyDiscovered:
 
         assert "privacy" not in result["identified_pages"], (
             "a privacy policy that does not exist was recorded as found"
+        )
+
+    @staticmethod
+    def _serve_store_with_a_return_gifts_category():
+        """A real pattern: a catalogue link whose text reads like a policy.
+
+        Chumbak sells "Return Gifts", party favours, at /collections/return-gifts. The link text
+        classifies as a refund policy, so that shopping category was registered as the refund page
+        and graded, while the actual policy sat unlinked at /policies/refund-policy.
+        """
+        import threading
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+        home = (
+            b"<!doctype html><html><body><h1>Shop</h1>"
+            b"<a href='/collections/return-gifts'>Return Gifts</a>"
+            b"</body></html>"
+        )
+        category = (
+            b"<!doctype html><html><body><h1>Return Gifts</h1>"
+            b"<p>Party favours and thank you gifts for your guests.</p></body></html>"
+        )
+        policy = (
+            b"<!doctype html><html><body><h1>Refund Policy</h1><p>"
+            + (b"You may request a refund or cancellation within 30 days. "
+               b"Our return policy covers damaged goods. ") * 30
+            + b"</p></body></html>"
+        )
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                path = self.path.split("?")[0].rstrip("/")
+                body = {
+                    "": home,
+                    "/collections/return-gifts": category,
+                    "/policies/refund-policy": policy,
+                }.get(path)
+                self.send_response(200 if body else 404)
+                self.send_header("Content-Type", "text/html")
+                body = body or b"not found"
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *args):
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        return server, server.server_address[1]
+
+    async def test_a_declared_url_beats_a_link_whose_text_merely_reads_like_one(self):
+        """Link text is the weaker evidence, so it must not block the search for the real page."""
+        from backend.tools.crawler_tools import crawl_website
+
+        server, port = self._serve_store_with_a_return_gifts_category()
+        try:
+            result = await crawl_website(f"http://127.0.0.1:{port}", max_pages=10, timeout=20)
+        finally:
+            server.shutdown()
+            server.server_close()
+
+        refund_url = result["identified_pages"].get("refund", "")
+        assert refund_url.endswith("/policies/refund-policy"), (
+            f"a shopping category was graded as the refund policy: {refund_url}"
         )
 
     @staticmethod

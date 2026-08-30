@@ -133,6 +133,39 @@ def _classify_link_text(text: str) -> str | None:
     return None
 
 
+_MAX_REDIRECT_HOPS = 5
+
+
+async def _resolve_entry_url(request, url: str) -> tuple[str | None, str | None]:
+    """Walk the entry URL's redirect chain by hand, checking every hop against the URL guard.
+
+    The browser follows redirects inside its own network stack: a `context.route` handler is
+    called for the navigation the crawler asked for and never for the hops that follow it, which
+    was measured, not assumed. So a public site answering 302 to a metadata endpoint would be
+    fetched with nothing having checked the address, and the contents would be handed back inside
+    the report. Resolving the chain first means the refused request is never made at all.
+
+    Returns (final url, None) or (None, reason it was refused).
+    """
+    current = url
+    for _ in range(_MAX_REDIRECT_HOPS):
+        reason = url_refusal_reason(current)
+        if reason:
+            return None, f"{current}: {reason}"
+        try:
+            response = await request.get(current, max_redirects=0, timeout=15000)
+        except Exception:
+            # Unreachable by this path. Let the browser try and report its own failure.
+            return current, None
+        if response.status not in (301, 302, 303, 307, 308):
+            return current, None
+        location = response.headers.get("location")
+        if not location:
+            return current, None
+        current = urljoin(current, location)
+    return None, f"{url}: more than {_MAX_REDIRECT_HOPS} redirects"
+
+
 def _probe_candidates(missing: list[str]) -> list[tuple[str, str]]:
     """Every (policy type, path) worth asking for, in declared order, capped."""
     candidates: list[tuple[str, str]] = []
@@ -238,6 +271,11 @@ async def crawl_website(url: str, max_pages: int = 20, timeout: int = 30) -> dic
     http_headers: dict[str, dict] = {}
     scripts_all: list[dict] = []
     identified_pages: dict[str, str] = {}
+    # Types identified by a URL that matches a declared pattern. Link text is weaker evidence: a
+    # store selling "Return Gifts" at /collections/return-gifts reads as a refund policy, and that
+    # shopping category was registered as the refund page and graded, while the real policy sat
+    # unlinked at its conventional URL. A URL match, found or probed, overrides a text match.
+    url_matched: set[str] = set()
     crawl_errors: list[str] = []
     all_links: list[str] = []
     tech_stack_signals: dict[str, list[str]] = {}
@@ -251,7 +289,7 @@ async def crawl_website(url: str, max_pages: int = 20, timeout: int = 30) -> dic
         )
         stack.push_async_callback(context.close)
 
-        async def fetch_page(page_url: str) -> tuple[str, dict[str, str]]:
+        async def fetch_page(page_url: str) -> tuple[str, dict[str, str], str]:
             page = await context.new_page()
             response_headers: dict[str, str] = {}
             try:
@@ -276,16 +314,28 @@ async def crawl_website(url: str, max_pages: int = 20, timeout: int = 30) -> dic
                     pass
 
                 html = await page.content()
-                return html, response_headers
+                return html, response_headers, page.url
             except Exception as e:
                 crawl_errors.append(f"{page_url}: {e}")
-                return "", {}
+                return "", {}, page_url
             finally:
                 await page.close()
 
-        # Fetch homepage
-        html, headers = await fetch_page(url)
+        # Fetch homepage, but resolve where it actually leads before pointing a browser at it.
+        entry, refused = await _resolve_entry_url(context.request, url)
+        if refused:
+            crawl_errors.append(refused)
+            entry = None
+
+        html, headers, landed = (await fetch_page(entry)) if entry else ("", {}, url)
         if html:
+            # A merchant who rebranded is still a merchant. wowskinscienceindia.com answers 301 to
+            # buywow.in, and pinning the base domain to what was typed meant every absolute link on
+            # the page read as off-domain and was thrown away: zero pages found, and the auditor
+            # then graded the homepage as the refund policy and reported a better score than the
+            # site deserved. The site being scanned is where the homepage actually resolved to.
+            url = _canonical_page(landed) or url
+            base_domain = _get_base_domain(url)
             pages_found[url] = html
             http_headers[url] = headers
             page_scripts = extract_scripts(html, url)
@@ -304,8 +354,9 @@ async def crawl_website(url: str, max_pages: int = 20, timeout: int = 30) -> dic
                     all_links.append(full_url)
 
                     ptype = _classify_url_as_policy(full_url)
-                    if ptype and ptype not in identified_pages:
+                    if ptype and ptype not in url_matched:
                         identified_pages[ptype] = full_url
+                        url_matched.add(ptype)
 
                     link_text = a_tag.get_text(strip=True)
                     ptype_text = _classify_link_text(link_text)
@@ -316,8 +367,8 @@ async def crawl_website(url: str, max_pages: int = 20, timeout: int = 30) -> dic
             cookies = [c["name"] for c in await context.cookies()]
             tech_stack_signals = _detect_tech_stack(html, headers, cookies)
 
-            # Whatever the homepage did not link, go and ask for directly.
-            missing = [p for p in POLICY_URL_PATTERNS if p not in identified_pages]
+            # Whatever the homepage did not link at a declared URL, go and ask for directly.
+            missing = [p for p in POLICY_URL_PATTERNS if p not in url_matched]
             if missing:
                 try:
                     probed = await _probe_for_policy_pages(context.request, url, missing)
@@ -340,7 +391,7 @@ async def crawl_website(url: str, max_pages: int = 20, timeout: int = 30) -> dic
                 break
             if not _is_new_page(page_url, pages_found):
                 continue
-            html, headers = await fetch_page(page_url)
+            html, headers, _ = await fetch_page(page_url)
             if html:
                 pages_found[page_url] = html
                 http_headers[page_url] = headers
