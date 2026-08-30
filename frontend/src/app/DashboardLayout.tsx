@@ -1,6 +1,15 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, LogOut, Menu, Radar, ShieldCheck, X } from 'lucide-react'
+import {
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Radar,
+  ShieldCheck,
+  X,
+} from 'lucide-react'
 
 import { useAuth } from '@/auth/AuthContext'
 import { Tooltip, cn } from '@/components/ui'
@@ -26,20 +35,65 @@ export function DashboardLayout() {
   const health = useBackendHealth()
   const running = useRunningCount()
   const [menuOpen, setMenuOpen] = useState(false)
+  // Persisted, because a sidebar that springs back open on every navigation is not a preference.
+  // Reading localStorage can throw in a locked-down browser, so a failure just means expanded.
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('mcie.sidebar') === 'collapsed'
+    } catch {
+      return false
+    }
+  })
+
+  // The next value is computed here rather than inside the state updater. React may invoke an
+  // updater more than once, and a localStorage write in there ran twice and left the stored
+  // preference disagreeing with the rendered width.
+  function toggleCollapsed() {
+    const next = !collapsed
+    setCollapsed(next)
+    try {
+      localStorage.setItem('mcie.sidebar', next ? 'collapsed' : 'expanded')
+    } catch {
+      // A preference that cannot be saved is still a preference for this session.
+    }
+  }
 
   function signOut() {
     logout()
     navigate('/', { replace: true })
   }
 
-  const sidebar = (
+  // `rail` is the collapsed desktop sidebar. The mobile drawer is always full width, because a
+  // 64px rail behind a hamburger would be two ways of saying the same thing.
+  const sidebarInner = (rail: boolean) => (
     <div className="flex h-full flex-col">
-      <div className="flex h-14 items-center gap-2 border-b border-surface-border px-4">
-        <ShieldCheck className="h-5 w-5 text-accent" />
-        <span className="text-body font-semibold text-text-primary">MCIE</span>
+      <div className={cn('flex h-14 items-center border-b border-surface-border', rail ? 'justify-center px-2' : 'gap-2 px-4')}>
+        <ShieldCheck className="h-5 w-5 shrink-0 text-accent" />
+        {!rail && <span className="text-body font-semibold text-text-primary">MCIE</span>}
+        {!rail && (
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            aria-label="Collapse sidebar"
+            className="ml-auto hidden rounded p-1 text-text-tertiary transition-colors hover:bg-surface-hover hover:text-text-primary md:block"
+          >
+            <PanelLeftClose className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
-      <nav className="flex-1 space-y-1 p-3">
+      {rail && (
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          aria-label="Expand sidebar"
+          className="mx-auto mt-2 rounded p-1.5 text-text-tertiary transition-colors hover:bg-surface-hover hover:text-text-primary"
+        >
+          <PanelLeftOpen className="h-4 w-4" />
+        </button>
+      )}
+
+      <nav className={cn('flex-1 space-y-1', rail ? 'p-2' : 'p-3')}>
         {NAV.map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
@@ -48,17 +102,23 @@ export function DashboardLayout() {
             onClick={() => setMenuOpen(false)}
             className={({ isActive }) =>
               cn(
-                'flex items-center gap-3 rounded border-l-[3px] px-3 py-2 text-body-sm transition-colors',
+                'flex items-center gap-3 rounded border-l-[3px] py-2 text-body-sm transition-colors',
+                rail ? 'justify-center px-2' : 'px-3',
                 isActive
                   ? 'border-accent bg-accent-muted text-text-primary'
                   : 'border-transparent text-text-secondary hover:bg-surface-hover hover:text-text-primary',
               )
             }
           >
-            <Icon className="h-4 w-4" />
-            {label}
+            <Icon className="h-4 w-4 shrink-0" />
+            {!rail && label}
             {label === 'New scan' && running > 0 && (
-              <span className="ml-auto rounded-full bg-accent-muted px-1.5 text-overline text-accent">
+              <span
+                className={cn(
+                  'rounded-full bg-accent-muted text-overline text-accent',
+                  rail ? 'absolute ml-6 -mt-4 px-1' : 'ml-auto px-1.5',
+                )}
+              >
                 {running}
               </span>
             )}
@@ -66,18 +126,24 @@ export function DashboardLayout() {
         ))}
       </nav>
 
-      <div className="border-t border-surface-border p-3">
-        <div className="mb-2 px-1">
-          <p className="truncate text-body-sm text-text-primary">{user?.name}</p>
-          <p className="truncate text-caption text-text-tertiary">{user?.role}</p>
-        </div>
+      <div className={cn('border-t border-surface-border', rail ? 'p-2' : 'p-3')}>
+        {!rail && (
+          <div className="mb-2 px-1">
+            <p className="truncate text-body-sm text-text-primary">{user?.name}</p>
+            <p className="truncate text-caption text-text-tertiary">{user?.role}</p>
+          </div>
+        )}
         <button
           type="button"
           onClick={signOut}
-          className="flex w-full items-center gap-3 rounded px-3 py-2 text-body-sm text-text-secondary transition-colors hover:bg-status-danger-muted hover:text-status-danger"
+          title={rail ? 'Sign out' : undefined}
+          className={cn(
+            'flex w-full items-center gap-3 rounded py-2 text-body-sm text-text-secondary transition-colors hover:bg-status-danger-muted hover:text-status-danger',
+            rail ? 'justify-center px-2' : 'px-3',
+          )}
         >
-          <LogOut className="h-4 w-4" />
-          Sign out
+          <LogOut className="h-4 w-4 shrink-0" />
+          {!rail && 'Sign out'}
         </button>
       </div>
     </div>
@@ -87,9 +153,17 @@ export function DashboardLayout() {
     <div className="min-h-screen bg-surface">
       <aside
         data-print-hide
-        className="fixed inset-y-0 left-0 z-40 hidden w-60 border-r border-surface-border bg-surface-raised md:block"
+        className={cn(
+          'fixed inset-y-0 left-0 z-40 hidden border-r border-surface-border bg-surface-raised',
+          'md:block',
+          // Deliberately not transitioned. With `transition-[width]` on an element whose display
+          // is controlled by a media query, Chrome kept reporting the old computed width after
+          // React swapped the class: re-applying the identical class resolved it to the right
+          // value. A collapse that animates but does not collapse is worse than an instant one.
+          collapsed ? 'w-16' : 'w-60',
+        )}
       >
-        {sidebar}
+        {sidebarInner(collapsed)}
       </aside>
 
       {menuOpen && (
@@ -102,14 +176,17 @@ export function DashboardLayout() {
             data-print-hide
             className="fixed inset-y-0 left-0 z-50 w-60 border-r border-surface-border bg-surface-raised md:hidden"
           >
-            {sidebar}
+            {sidebarInner(false)}
           </aside>
         </>
       )}
 
       {/* The shell is a fixed sidebar plus a 240px left inset here. On paper that leaves an
           empty column and pushes the report off the right edge, so print resets it. */}
-      <div className="md:pl-60" data-print-main>
+      <div
+        className={cn(collapsed ? 'md:pl-16' : 'md:pl-60')}
+        data-print-main
+      >
         <header
           data-print-hide
           className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-surface-border bg-surface-raised/95 px-4 backdrop-blur"

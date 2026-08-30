@@ -70,15 +70,20 @@ def _integration_score(integration) -> int:
 
 
 def _estimate_fix_time(critical: int, warnings: int) -> str:
+    """How long the remaining work should take, written as a sentence a merchant can read.
+
+    These were phrased as "1-2 weeks (major compliance overhaul required)". A parenthetical is
+    how a developer annotates a value, not how a product talks to the person it is grading.
+    """
     if critical == 0 and warnings == 0:
         return "No fixes needed, ready for Razorpay onboarding"
     if critical == 0:
-        return "1-2 hours (minor improvements only)"
+        return "1-2 hours of minor improvements"
     if critical <= 2:
-        return "1-2 days (add missing policies, fix contact info)"
+        return "1-2 days to add the missing policies and fix the contact details"
     if critical <= 4:
-        return "3-5 days (multiple policy documents needed, KYC alignment required)"
-    return "1-2 weeks (major compliance overhaul required)"
+        return "3-5 days to write several policy documents and align the KYC names"
+    return "1-2 weeks for a full compliance overhaul"
 
 
 def _compliance_gaps(compliance) -> tuple[list[GapItem], list[GapItem]]:

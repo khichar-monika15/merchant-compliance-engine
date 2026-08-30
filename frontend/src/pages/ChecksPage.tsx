@@ -5,6 +5,7 @@ import { ArrowLeft, ShieldCheck, TriangleAlert } from 'lucide-react'
 import { getKnowledge } from '@/api/client'
 import type { KnowledgeBase, PciCheck, RbiCheck } from '@/api/types'
 import { Badge, Card, SEVERITY_VARIANT, Spinner, cn, gradeText } from '@/components/ui'
+import { businessTypeLabel } from '@/api/labels'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -77,7 +78,7 @@ function RbiCard({ check }: { check: RbiCheck }) {
             <ul className="space-y-1">
               {variants.map(([type, v]) => (
                 <li key={type} className="flex flex-wrap items-baseline gap-2">
-                  <span className="font-mono text-caption text-accent">{type}</span>
+                  <span className="text-caption font-medium text-accent">{businessTypeLabel(type)}</span>
                   <span className="text-caption text-text-secondary">
                     {(v.extra_topics ?? []).join(', ')}
                   </span>

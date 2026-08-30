@@ -2,6 +2,7 @@ import { CircleCheck, CircleAlert } from 'lucide-react'
 
 import type { IntegrationResult } from '@/api/types'
 import { Badge, Card, CardHeader, CodeBlock } from '@/components/ui'
+import { integrationMethodLabel, stackLabel } from '@/api/labels'
 
 export function IntegrationTab({ integration }: { integration: IntegrationResult }) {
   const stacks = Object.entries(integration.detected_stack ?? {})
@@ -21,7 +22,7 @@ export function IntegrationTab({ integration }: { integration: IntegrationResult
             <ul className="space-y-3">
               {stacks.map(([name, evidence]) => (
                 <li key={name}>
-                  <Badge variant="info">{name}</Badge>
+                  <Badge variant="info">{stackLabel(name)}</Badge>
                   <ul className="mt-1.5 space-y-0.5">
                     {(evidence as string[]).map((e, i) => (
                       <li key={i} className="font-mono text-caption text-text-tertiary">
@@ -38,8 +39,8 @@ export function IntegrationTab({ integration }: { integration: IntegrationResult
         <Card>
           <CardHeader title="Recommended Razorpay path" />
           <p className="text-body text-text-primary">{integration.recommended_product}</p>
-          <p className="mt-1 font-mono text-caption text-text-tertiary">
-            {integration.integration_method}
+          <p className="mt-1 text-caption text-text-tertiary">
+            {integrationMethodLabel(integration.integration_method)}
           </p>
           {integration.recommendation_reason && (
             <p className="mt-2 text-body-sm text-text-secondary">
@@ -82,7 +83,7 @@ export function IntegrationTab({ integration }: { integration: IntegrationResult
         <CodeBlock
           code={integration.starter_code}
           language={integration.starter_code_language}
-          title={`Starter code for ${stacks[0]?.[0] ?? 'this stack'}`}
+          title={`Starter code for ${stackLabel(stacks[0]?.[0]) || 'this stack'}`}
         />
       )}
     </div>

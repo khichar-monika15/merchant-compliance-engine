@@ -3,6 +3,7 @@ import { Check, Copy } from 'lucide-react'
 
 import type { PolicyGenResult } from '@/api/types'
 import { Badge, Card, CardHeader, EmptyState, cn } from '@/components/ui'
+import { businessTypeLabel } from '@/api/labels'
 
 export function PoliciesTab({ policies }: { policies: PolicyGenResult }) {
   const generated = policies.generated_policies ?? []
@@ -88,7 +89,7 @@ export function PoliciesTab({ policies }: { policies: PolicyGenResult }) {
       <div className="flex items-center gap-3 px-5 py-3">
         <Badge variant="info">{policy.policy_type}</Badge>
         <span className="text-caption text-text-tertiary">
-          {policy.word_count} words, tailored to {policy.tailored_to}
+          {policy.word_count} words, tailored to {businessTypeLabel(policy.tailored_to).toLowerCase()}
         </span>
       </div>
 

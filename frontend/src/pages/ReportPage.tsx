@@ -4,6 +4,7 @@ import { ArrowLeft, Download, FileJson, FileText, Printer } from 'lucide-react'
 
 import { Badge, Button, Card, cn, Menu, Spinner, Tabs } from '@/components/ui'
 import type { TabItem } from '@/components/ui'
+import { businessTypeLabel } from '@/api/labels'
 import { ScoreRing } from '@/features/report/ScoreRing'
 import { exportJson, exportMarkdown, exportPdf, siteFromReport } from '@/features/report/exportReport'
 import { AuditTab } from '@/features/report/tabs/AuditTab'
@@ -99,7 +100,7 @@ export function ReportPage() {
               <Badge variant="critical">{report.critical_gaps?.length ?? 0} critical</Badge>
               <Badge variant="warning">{report.warnings?.length ?? 0} warnings</Badge>
               {merchant.business_type && (
-                <Badge variant="neutral">{merchant.business_type}</Badge>
+                <Badge variant="neutral">{businessTypeLabel(merchant.business_type)}</Badge>
               )}
             </div>
           </div>

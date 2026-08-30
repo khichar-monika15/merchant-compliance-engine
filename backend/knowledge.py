@@ -136,6 +136,7 @@ KNOWLEDGE_FIELDS: dict[str, dict[str, tuple[str, str]]] = {
     "tech_stack_signatures.json": {
         "version": applied("backend.api.routes"),
         "stacks": applied("backend.agents.integration_advisor"),
+        "display_name": applied("backend.knowledge"),
         "shopify": dynamic("stacks"),
         "woocommerce": dynamic("stacks"),
         "wordpress": dynamic("stacks"),
@@ -260,3 +261,14 @@ def page_type(check_id: str) -> str:
 
 def quality_criteria(check_id: str) -> dict:
     return rbi_check(check_id).get("quality_criteria", {})
+
+
+def stack_display_name(stack: str) -> str:
+    """The human name for a stack key, as the knowledge base declares it.
+
+    `vue_nuxt` is a key, not a word for a merchant to read, and it was reaching the audit trail.
+    Declared once in `tech_stack_signatures.json` so the backend log and the frontend label
+    cannot drift apart.
+    """
+    stacks = tech_stack_document()["stacks"]
+    return stacks.get(stack, {}).get("display_name", stack)

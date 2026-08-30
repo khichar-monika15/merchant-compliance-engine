@@ -2,6 +2,7 @@
   "version": "1.0",
   "stacks": {
     "shopify": {
+      "display_name": "Shopify",
       "detection": {
         "html_contains": [
           "myshopify.com",
@@ -23,6 +24,7 @@
       }
     },
     "woocommerce": {
+      "display_name": "WooCommerce",
       "detection": {
         "html_contains": [
           "woocommerce",
@@ -40,6 +42,7 @@
       }
     },
     "wordpress": {
+      "display_name": "WordPress",
       "detection": {
         "html_contains": [
           "wp-content",
@@ -60,6 +63,7 @@
       }
     },
     "nextjs": {
+      "display_name": "Next.js",
       "detection": {
         "html_contains": [
           "_next/static",
@@ -79,6 +83,7 @@
       }
     },
     "react": {
+      "display_name": "React",
       "detection": {
         "html_contains": [
           "react-dom",
@@ -97,6 +102,7 @@
       }
     },
     "vue_nuxt": {
+      "display_name": "Vue / Nuxt",
       "detection": {
         "html_contains": [
           "__nuxt",
@@ -114,6 +120,7 @@
       }
     },
     "django": {
+      "display_name": "Django",
       "detection": {
         "html_contains": [
           "csrfmiddlewaretoken",
@@ -130,6 +137,7 @@
       }
     },
     "laravel": {
+      "display_name": "Laravel",
       "detection": {
         "cookies": [
           "laravel_session"
@@ -149,6 +157,7 @@
       }
     },
     "static_html": {
+      "display_name": "Static HTML",
       "detection": {},
       "razorpay_recommendation": {
         "product": "Razorpay Payment Links or Standard Checkout",

@@ -99,13 +99,16 @@ export function SecurityTab({ pci }: { pci: PCIResult }) {
       {pci.critical_issues.length > 0 && (
         <Card>
           <CardHeader title="Findings" />
-          <ul className="space-y-2">
+          <ol className="space-y-2">
             {pci.critical_issues.map((issue, i) => (
-              <li key={i} className="text-body-sm text-text-secondary">
-                {issue}
+              <li key={i} className="flex gap-3 text-body-sm text-text-secondary">
+                <span className="w-5 shrink-0 text-right font-mono text-caption text-text-tertiary">
+                  {i + 1}.
+                </span>
+                <span className="min-w-0">{issue}</span>
               </li>
             ))}
-          </ul>
+          </ol>
         </Card>
       )}
 

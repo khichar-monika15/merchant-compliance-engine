@@ -7,6 +7,7 @@ from pathlib import Path
 from backend.agents._audit import failure
 from backend.models.schemas import AuditLogEntry, EngineState, IntegrationResult
 from backend import knowledge
+from backend.knowledge import stack_display_name
 from backend.tools.razorpay_client import create_order
 
 _STARTER_DIR = Path(__file__).parent.parent / "knowledge" / "starter_code_templates"
@@ -90,7 +91,7 @@ async def run(state: EngineState) -> dict:
             timestamp=t0.isoformat(),
             agent="IntegrationAdvisor",
             action="Tech stack detection + Razorpay integration recommendation",
-            result=f"Detected: {primary_stack} → Recommend: {result.recommended_product} | Test payment: {test_status}",
+            result=f"Detected: {stack_display_name(primary_stack)} → Recommend: {result.recommended_product} | Test payment: {test_status}",
             duration_ms=round(duration_ms, 1),
         )
 

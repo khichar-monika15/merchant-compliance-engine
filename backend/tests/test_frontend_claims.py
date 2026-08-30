@@ -464,3 +464,169 @@ class TestTheAssistantGlowIsDrivenByState:
         assert "pulseGlow" in config and "pulse-glow" in config, (
             "the animation the widget asks for is not defined"
         )
+
+
+class TestIdentifiersAreNotShownToMerchants:
+    """`food_delivery` and `vue_nuxt` are knowledge base keys, not words for a merchant to read.
+
+    The scan form had labels for business types and kept them to itself, so the report rendered
+    the raw key as a badge beside the merchant's own name.
+    """
+
+    @staticmethod
+    def _label_map(name: str) -> dict[str, str]:
+        source = _read("api/labels.ts")
+        block = re.search(rf"export const {name}: Record<string, string> = \{{(.*?)\n\}}", source, re.S)
+        assert block, f"could not parse {name}"
+        return dict(re.findall(r"(\w+):\s*'([^']*)'", block.group(1)))
+
+    def test_every_business_type_the_engine_accepts_has_a_label(self):
+        declared: set[str] = set()
+        for check in kb.rbi_checks():
+            declared |= set(check.get("business_type_variations", {}))
+
+        labelled = self._label_map("BUSINESS_TYPE_LABELS")
+        missing = sorted(declared - set(labelled))
+        assert not missing, (
+            f"the knowledge base declares business types with no human label: {missing}. A "
+            "merchant would see the raw key."
+        )
+
+    def test_every_stack_label_matches_the_knowledge_base(self):
+        """`display_name` in the JSON is canonical; the TypeScript map is a checked copy.
+
+        The backend writes the stack name into the audit trail and the frontend renders it as a
+        badge. Two hand-written maps would drift, so the JSON owns it and this asserts the copy.
+        """
+        from backend import knowledge
+
+        declared = {
+            key: stack["display_name"]
+            for key, stack in knowledge.tech_stack_document()["stacks"].items()
+        }
+        labelled = self._label_map("STACK_LABELS")
+
+        assert set(declared) == set(labelled), (
+            f"stacks with no label: {sorted(set(declared) - set(labelled))}; "
+            f"labels for stacks that do not exist: {sorted(set(labelled) - set(declared))}"
+        )
+        drifted = {k: (declared[k], labelled[k]) for k in declared if declared[k] != labelled[k]}
+        assert not drifted, f"the frontend label disagrees with the knowledge base: {drifted}"
+
+    def test_the_audit_trail_uses_the_display_name(self):
+        """`Detected: vue_nuxt` was reaching the merchant's audit trail."""
+        source = Path("backend/agents/integration_advisor.py").read_text(encoding="utf-8")
+        assert "stack_display_name(primary_stack)" in source, (
+            "the integration audit entry writes the raw stack key"
+        )
+
+    def test_every_integration_method_has_a_label(self):
+        """`standard_checkout` was rendering under the recommended product name."""
+        from backend import knowledge
+
+        declared = {
+            stack["razorpay_recommendation"]["integration_method"]
+            for stack in knowledge.tech_stack_document()["stacks"].values()
+        }
+        labelled = self._label_map("INTEGRATION_METHOD_LABELS")
+        missing = sorted(declared - set(labelled))
+        assert not missing, f"integration methods with no human label: {missing}"
+
+    def test_no_label_still_contains_an_underscore(self):
+        for name in ("BUSINESS_TYPE_LABELS", "STACK_LABELS", "INTEGRATION_METHOD_LABELS"):
+            for key, label in self._label_map(name).items():
+                assert "_" not in label, f"{name}[{key}] is {label!r}, which is still an identifier"
+
+    def test_the_report_badge_uses_the_label(self):
+        source = _read("pages/ReportPage.tsx")
+        assert "businessTypeLabel(merchant.business_type)" in source, (
+            "the report renders the raw business_type key"
+        )
+
+
+class TestAuditDurationsReadAsMeasurements:
+    """Agents doing pure computation finish in under a millisecond, which is real.
+
+    Rounding to a whole number printed "0 ms", which reads as a missing measurement rather than a
+    fast one. Measured directly: PCIScanner 0.23 ms, KYCValidator 0.25 ms.
+    """
+
+    def test_sub_millisecond_is_not_rendered_as_zero(self):
+        source = _read("features/report/tabs/AuditTab.tsx")
+        assert "toFixed(0)} ms" not in source, (
+            "durations are rounded to whole milliseconds, so a fast agent prints 0 ms"
+        )
+        assert "<1 ms" in source, "there is no rendering for a sub-millisecond duration"
+
+    def test_the_formatter_is_used(self):
+        source = _read("features/report/tabs/AuditTab.tsx")
+        assert "formatDuration(entry.duration_ms)" in source
+
+
+class TestTheGradeWordSitsOutsideTheRing:
+    """"Significant gaps" is sixteen characters and collided with the ring stroke.
+
+    "Good" happened to fit, which is why a D grade was the first to show it.
+    """
+
+    def test_the_word_is_not_inside_the_overlay(self):
+        source = _read("features/report/ScoreRing.tsx")
+        overlay = re.search(r'absolute inset-0(.*?)</div>', source, re.S)
+        assert overlay, "could not find the overlay that centres the score inside the ring"
+        assert "GRADE_WORD" not in overlay.group(1), (
+            "the grade word is rendered inside the circle, where a long one overlaps the ring"
+        )
+
+    def test_the_word_is_still_rendered(self):
+        source = _read("features/report/ScoreRing.tsx")
+        assert "GRADE_WORD[grade]" in source, "the grade word was dropped rather than moved"
+
+
+class TestAuthPanelCounts:
+    """The sign-in page restates the check count too, and it had drifted to 11.
+
+    Same failure as the dashboard: the landing page's numbers were guarded and this copy was not.
+    """
+
+    def test_the_check_count_matches_the_knowledge_base(self):
+        source = _read("pages/AuthPanel.tsx")
+        match = re.search(r"(\d+) compliance checks · (\d+) agents", source)
+        assert match, "the sign-in page no longer states counts in the expected shape"
+
+        checks, agents = int(match.group(1)), int(match.group(2))
+        expected_checks = len(kb.rbi_checks()) + len(kb.pci_checks())
+        assert checks == expected_checks, (
+            f"the sign-in page claims {checks} checks; the knowledge base declares {expected_checks}"
+        )
+        assert agents == len(_agent_modules()), (
+            f"the sign-in page claims {agents} agents; backend/agents holds {len(_agent_modules())}"
+        )
+
+    def test_the_timing_matches_the_landing_page(self):
+        """One measurement, quoted in two places, is two places for it to go stale."""
+        auth = _read("pages/AuthPanel.tsx")
+        landing = _read("pages/LandingPage.tsx")
+
+        auth_timing = re.search(r"(\d+ to \d+ seconds)", auth)
+        landing_timing = re.search(r"'(\d+ to \d+)s'", landing)
+        assert auth_timing and landing_timing, "could not find the quoted timing on both pages"
+        assert auth_timing.group(1).replace(" seconds", "") == landing_timing.group(1), (
+            f"the sign-in page says {auth_timing.group(1)}, the landing page says "
+            f"{landing_timing.group(1)}s"
+        )
+
+
+class TestThereIsAWayBackToTheLandingPage:
+    """The wordmark linked home, but it is not rendered below the lg breakpoint."""
+
+    def test_the_sign_in_page_has_an_explicit_link_home(self):
+        source = _read("pages/AuthPanel.tsx")
+        assert "Back to home" in source, (
+            "the sign-in page offers no visible way back to the landing page"
+        )
+
+
+class TestFindingsAreNumbered:
+    def test_the_security_findings_are_an_ordered_list(self):
+        source = _read("features/report/tabs/SecurityTab.tsx")
+        assert "<ol" in source, "the findings list is not numbered"

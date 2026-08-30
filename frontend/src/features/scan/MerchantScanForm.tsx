@@ -1,16 +1,16 @@
 import { useState } from 'react'
 import { Radar } from 'lucide-react'
 
+import { BUSINESS_TYPE_LABELS } from '@/api/labels'
 import type { MerchantInput } from '@/api/types'
 import { Button, Card, CardHeader, Input, Select } from '@/components/ui'
 import { DEMO_SITES } from '@/scan/demoSites'
 
+// Built from the shared label map so the form and the report cannot disagree about what a
+// business type is called.
 const BUSINESS_TYPES = [
   { value: '', label: 'Auto detect' },
-  { value: 'ecommerce', label: 'E-commerce' },
-  { value: 'saas', label: 'SaaS' },
-  { value: 'services', label: 'Services' },
-  { value: 'food_delivery', label: 'Food delivery' },
+  ...Object.entries(BUSINESS_TYPE_LABELS).map(([value, label]) => ({ value, label })),
 ]
 
 const EMPTY: MerchantInput = {

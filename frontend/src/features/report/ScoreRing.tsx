@@ -47,7 +47,8 @@ export function ScoreRing({ score, grade, size = 132, className }: ScoreRingProp
   }, [score])
 
   return (
-    <div className={cn('relative shrink-0', className)} style={{ width: size, height: size }}>
+    <div className={cn('flex shrink-0 flex-col items-center gap-3', className)}>
+      <div className="relative" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
         <circle
           cx={size / 2}
@@ -70,11 +71,14 @@ export function ScoreRing({ score, grade, size = 132, className }: ScoreRingProp
           style={{ transition: 'stroke-dashoffset 120ms linear' }}
         />
       </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-h1 leading-none text-text-primary">{shown}</span>
-        <span className={cn('text-h3 leading-tight', GRADE_TEXT[grade])}>{grade}</span>
-        <span className="mt-0.5 text-caption text-text-tertiary">{GRADE_WORD[grade] ?? ''}</span>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-h1 leading-none text-text-primary">{shown}</span>
+          <span className={cn('text-h3 leading-tight', GRADE_TEXT[grade])}>{grade}</span>
+        </div>
       </div>
+      {/* Outside the circle. "Significant gaps" is sixteen characters and overlapped the ring
+          stroke when it sat inside, while "Good" happened to fit. */}
+      <span className="text-caption text-text-tertiary">{GRADE_WORD[grade] ?? ''}</span>
     </div>
   )
 }

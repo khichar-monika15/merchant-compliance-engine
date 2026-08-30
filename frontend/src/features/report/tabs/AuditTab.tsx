@@ -11,6 +11,17 @@ const AGENT_TONE: Record<string, string> = {
   ReportGenerator: 'text-text-secondary',
 }
 
+/**
+ * The agents that do pure computation genuinely finish in under a millisecond, so rounding to a
+ * whole number printed "0 ms" and read as a missing measurement rather than a fast one. Seconds
+ * are used above a second because "4821 ms" is harder to scan than "4.8 s".
+ */
+function formatDuration(ms: number): string {
+  if (ms < 1) return '<1 ms'
+  if (ms < 1000) return `${Math.round(ms)} ms`
+  return `${(ms / 1000).toFixed(1)} s`
+}
+
 function formatTime(ts: string): string {
   try {
     return new Date(ts).toLocaleTimeString()
@@ -50,7 +61,7 @@ export function AuditTab({ log }: { log: AuditLogEntry[] }) {
               </span>
               {entry.duration_ms != null && (
                 <span className="ml-auto font-mono text-caption text-text-tertiary sm:order-last sm:ml-0 sm:w-20 sm:text-right">
-                  {entry.duration_ms.toFixed(0)} ms
+                  {formatDuration(entry.duration_ms)}
                 </span>
               )}
             </div>

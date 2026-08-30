@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { ShieldCheck } from 'lucide-react'
+import { ArrowLeft, ShieldCheck } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 export interface AuthPanelProps {
@@ -34,12 +34,21 @@ export function AuthPanel({ title, subtitle, children, footer }: AuthPanelProps)
         </div>
 
         <p className="relative text-caption text-white/50">
-          11 compliance checks · 7 agents · 5 to 9 seconds on a local site
+          12 compliance checks · 7 agents · 4 to 9 seconds on a local site
         </p>
       </div>
 
       <div className="flex flex-1 items-center justify-center bg-surface px-6 py-12">
         <div className="w-full max-w-sm">
+          {/* The logo on the left panel is a link home, but it is not on screen at all below
+              the lg breakpoint and nobody reads a wordmark as a way out. */}
+          <Link
+            to="/"
+            className="mb-6 inline-flex items-center gap-1.5 text-body-sm text-text-secondary hover:text-text-primary"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to home
+          </Link>
           <h1 className="text-h1 text-text-primary">{title}</h1>
           <p className="mb-6 mt-1 text-body-sm text-text-secondary">{subtitle}</p>
           {children}
