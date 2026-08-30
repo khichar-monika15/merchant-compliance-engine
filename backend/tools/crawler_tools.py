@@ -171,6 +171,72 @@ async def _resolve_entry_url(request, url: str) -> tuple[str | None, str | None]
     return None, f"{url}: more than {_MAX_REDIRECT_HOPS} redirects"
 
 
+# A real sitemap is mostly products. Reading it costs a few requests and no rendering, but a
+# compliance scan has no business walking tens of thousands of URLs.
+_MAX_SITEMAP_DOCS = 5
+_MAX_SITEMAP_URLS = 5000
+
+
+async def _discover_from_sitemap(request, base_url: str, missing: list[str]) -> dict[str, str]:
+    """Policy pages the site itself lists, for the types link discovery missed.
+
+    Link discovery sees only what the homepage exposes, and probing guesses a handful of
+    conventional paths. Neither finds a policy at `/info/shipping-policy`: nothing links it, and
+    `/info` is not a prefix worth guessing. A sitemap names it outright.
+
+    This is an extra source, not a replacement. One real storefront's sitemap listed products,
+    collections and blog posts and no policy pages at all, because legal pages carry no SEO
+    value, so a site that publishes no sitemap or omits its policies from it is the normal case
+    rather than an error.
+    """
+    roots: list[str] = []
+    try:
+        robots = await request.get(urljoin(base_url, "/robots.txt"), timeout=10000)
+        if robots.ok:
+            for line in (await robots.text()).splitlines():
+                if line.lower().startswith("sitemap:"):
+                    roots.append(line.split(":", 1)[1].strip())
+    except Exception:
+        pass
+    roots.append(urljoin(base_url, "/sitemap.xml"))
+
+    base_domain = _get_base_domain(base_url)
+    found: dict[str, str] = {}
+    seen_docs: set[str] = set()
+    urls_seen = 0
+
+    while roots and len(seen_docs) < _MAX_SITEMAP_DOCS and urls_seen < _MAX_SITEMAP_URLS:
+        doc_url = roots.pop(0)
+        if doc_url in seen_docs or _get_base_domain(doc_url) != base_domain:
+            continue
+        seen_docs.add(doc_url)
+        try:
+            response = await request.get(doc_url, timeout=15000)
+            if not response.ok:
+                continue
+            soup = BeautifulSoup(await response.text(), "xml")
+        except Exception:
+            continue
+
+        # A sitemapindex lists sitemaps; a urlset lists pages.
+        is_index = soup.find("sitemapindex") is not None
+        for loc in soup.find_all("loc"):
+            value = loc.get_text(strip=True)
+            if not value:
+                continue
+            urls_seen += 1
+            if is_index:
+                roots.append(value)
+                continue
+            if _get_base_domain(value) != base_domain:
+                continue
+            ptype = _classify_url_as_policy(value)
+            if ptype in missing and ptype not in found:
+                found[ptype] = _canonical_page(value)
+
+    return found
+
+
 def _probe_candidates(missing: list[str]) -> list[tuple[str, str]]:
     """Every (policy type, path) worth asking for, in declared order, capped."""
     candidates: list[tuple[str, str]] = []
@@ -384,18 +450,28 @@ async def crawl_website(url: str, max_pages: int = 20, timeout: int = 30) -> dic
             # Detect tech stack from homepage
             tech_stack_signals = _detect_tech_stack(html, headers, cookies)
 
-            # Whatever the homepage did not link at a declared URL, go and ask for directly.
+            # Whatever the homepage did not link at a declared URL: ask the site's own sitemap
+            # first, since it names real URLs, then guess at conventional paths for the rest.
+            def _record(discovered: dict[str, str]) -> None:
+                for ptype, found_url in discovered.items():
+                    identified_pages[ptype] = found_url
+                    url_matched.add(ptype)
+                    if found_url not in all_links:
+                        all_links.append(found_url)
+
             missing = [p for p in POLICY_URL_PATTERNS if p not in url_matched]
             if missing:
                 try:
-                    probed = await _probe_for_policy_pages(api, url, missing)
+                    _record(await _discover_from_sitemap(api, url, missing))
                 except Exception as e:
-                    probed = {}
+                    crawl_errors.append(f"sitemap discovery: {e}")
+
+            missing = [p for p in POLICY_URL_PATTERNS if p not in url_matched]
+            if missing:
+                try:
+                    _record(await _probe_for_policy_pages(api, url, missing))
+                except Exception as e:
                     crawl_errors.append(f"policy probe: {e}")
-                for ptype, found_url in probed.items():
-                    identified_pages[ptype] = found_url
-                    if found_url not in all_links:
-                        all_links.append(found_url)
 
         # Crawl identified policy pages and a few more internal links
         priority_urls = list(identified_pages.values())

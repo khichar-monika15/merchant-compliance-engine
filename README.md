@@ -34,7 +34,7 @@ is needed for any of this.** Every score in the report is produced by rules; the
 policy quality when a credential is present and the report says which path it took.
 
 ```bash
-uv run pytest backend/tests/                       # 565 tests, no credentials needed
+uv run pytest backend/tests/                       # 569 tests, no credentials needed
 uv run python -m backend.tests.validate_ground_truth   # 4/4 against recorded expectations
 ```
 
@@ -160,6 +160,56 @@ unreachable, and asserts the exact recorded score only on the deterministic path
 `test-sites/serve.py` reads each site's `vercel.json` and sends the headers it declares. Do not use
 `npx serve`: it ignores that file, so all four sites report every header missing and a quarter of
 the PCI score becomes a property of how you served the site rather than of the site.
+
+---
+
+## What real websites broke
+
+The four sites above are ones we wrote. They prove the engine discriminates between compliance
+levels; they say nothing about whether it works on a site nobody designed for it. So we pointed it
+at three live Indian D2C storefronts.
+
+They are not named here. They did not ask to be assessed, and a compliance grade attached to a real
+company's name is not ours to publish. The bugs are the point, and every one of them reproduces
+against any site of the same shape.
+
+The first scan returned nothing at all. Five bugs, in the order they were found:
+
+**Waiting for silence that never comes.** `page.goto(wait_until="networkidle")` waits for 500ms of
+network quiet. A real store with analytics, a chat widget and polling never has 500ms of quiet, so
+`goto` spent the whole timeout and then discarded a page whose HTML had been ready for seconds.
+Every synthetic site is static and goes idle instantly. That is the shape of all five: right in the
+lab, wrong on the open web.
+
+**Patterns that labelled but never looked.** Every check declares `url_patterns` like
+`/refund-policy`. They were used only to classify links the crawler had already found. Real stores
+link privacy and terms in the footer and leave refund and shipping to the checkout flow, so those
+pages were never fetched, and the auditor graded whichever other page held two keywords, reporting
+quality 1 for a policy that scores 6 when the right page is read.
+
+**Link text outranking a URL.** One store sells "Return Gifts", party favours, at
+`/collections/return-gifts`. That link text classifies as a refund policy, so a shopping category
+was registered as the refund page and graded, and being registered it also stopped the search for
+the real policy. A URL matching a declared pattern is stronger evidence than link text, and is now
+treated as such.
+
+**A rebrand emptying the whole crawl.** One site answers 301 to a different domain. The base domain
+was pinned to what the merchant typed, so after the redirect every absolute link read as off-domain
+and was discarded. Zero pages found, the auditor fell back to keyword matching, and the homepage was
+graded as the refund policy. The site scored 52 and a C. A wrong answer in the generous direction is
+worse than a failure, because it is the one a merchant will act on.
+
+**One browser session grading skeletons.** Sharing a single browser context across the crawl, one
+storefront returned its homepage at 1.6MB and then a 10KB, 26 word skeleton for every policy page
+after it: it serves a client-routing shell to a session that already has the app loaded. The engine
+graded those skeletons and called a good shipping policy quality 1. A fresh context per page
+returned every page in full. Neither a 20 second settle nor an ordinary Chrome user agent changed
+it, so this was the session, not rendering time and not being taken for a bot; the user agent stays
+honest. This was also the source of run to run drift, the same site scoring 59 then 55 with shipping
+quality 8 then 1 on the same URL, depending on which pages happened to arrive whole.
+
+Each has a test that was watched failing first, and the synthetic ground truth did not move for any
+of them. That is the point: these were failures the lab could not produce.
 
 ---
 

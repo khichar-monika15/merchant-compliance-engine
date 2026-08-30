@@ -635,3 +635,139 @@ class TestASessionAwareSiteIsNotGradedOnItsShell:
         assert "dispatched within two days" in html, (
             f"the crawl kept a {len(html)} byte skeleton instead of the policy page"
         )
+
+
+class TestPolicyPagesListedInTheSitemapAreFound:
+    """A site's own sitemap is the one authoritative list of its URLs, and nothing read it.
+
+    Link discovery sees what the homepage exposes, and probing guesses a handful of conventional
+    paths. Neither finds a policy at `/info/shipping-policy`: it is not linked, and `/info` is not
+    a prefix worth guessing. The sitemap names it outright.
+
+    Measured caveat, recorded because it decides how much this is worth: one real storefront's
+    sitemap listed products, collections and blog posts and no policy pages at all, because legal
+    pages carry no SEO value. So this is an extra source of truth, not a replacement for the other
+    two.
+    """
+
+    POLICY = (
+        "<!doctype html><html><body><h1>Shipping Policy</h1><p>"
+        + ("Orders are dispatched within two days by courier. Delivery time is five to "
+           "seven days. Shipping charges are shown at checkout. " * 30)
+        + "</p></body></html>"
+    )
+    HOME = "<!doctype html><html><body><h1>Shop</h1><a href='/about'>About</a></body></html>"
+
+    @classmethod
+    def _serve(cls, *, robots_sitemap=None, at_default_sitemap=True, nested=False, products=0):
+        """A store whose shipping policy is reachable only through its sitemap.
+
+        robots_sitemap: path to advertise in robots.txt, or None for no robots.txt
+        at_default_sitemap: also serve /sitemap.xml
+        nested: /sitemap.xml is a sitemapindex pointing at the real urlset
+        products: how many product URLs to bury the policy among
+        """
+        import threading
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+        holder = {}
+
+        def urlset(host):
+            locs = [f"http://{host}/products/item-{i}" for i in range(products)]
+            locs.append(f"http://{host}/info/shipping-policy")
+            body = "".join(f"<url><loc>{u}</loc></url>" for u in locs)
+            return f'<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{body}</urlset>'
+
+        def index(host):
+            return (
+                '<?xml version="1.0"?><sitemapindex '
+                'xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+                f"<sitemap><loc>http://{host}/sm/pages.xml</loc></sitemap></sitemapindex>"
+            )
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                host = self.headers["Host"]
+                path = self.path.split("?")[0].rstrip("/")
+                body = None
+                if path == "":
+                    body = cls.HOME
+                elif path == "/info/shipping-policy":
+                    body = cls.POLICY
+                elif path == "/robots.txt":
+                    if robots_sitemap:
+                        body = f"User-agent: *\nAllow: /\nSitemap: http://{host}{robots_sitemap}\n"
+                elif path == "/sitemap.xml" and at_default_sitemap:
+                    body = index(host) if nested else urlset(host)
+                elif path in ("/sm/pages.xml", robots_sitemap):
+                    body = urlset(host)
+                elif path.startswith("/products/"):
+                    body = "<html><body><h1>A product</h1></body></html>"
+
+                encoded = (body or "not found").encode()
+                self.send_response(200 if body else 404)
+                self.send_header("Content-Type", "text/html")
+                self.send_header("Content-Length", str(len(encoded)))
+                self.end_headers()
+                self.wfile.write(encoded)
+
+            def log_message(self, *args):
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        holder["server"] = server
+        return server, server.server_address[1]
+
+    async def _crawl(self, server, port, **kw):
+        from backend.tools.crawler_tools import crawl_website
+
+        try:
+            return await crawl_website(f"http://127.0.0.1:{port}", timeout=20, **kw)
+        finally:
+            server.shutdown()
+            server.server_close()
+
+    async def test_a_policy_url_only_in_the_sitemap_is_found(self):
+        server, port = self._serve()
+        result = await self._crawl(server, port, max_pages=10)
+
+        url = result["identified_pages"].get("shipping", "")
+        assert url.endswith("/info/shipping-policy"), (
+            f"the sitemap named the shipping policy and it was not found: "
+            f"{result['identified_pages']}"
+        )
+        assert "dispatched within two days" in result["pages_found"].get(url, ""), (
+            "the policy was identified from the sitemap but never fetched"
+        )
+
+    async def test_the_sitemap_named_in_robots_txt_is_used(self):
+        """The sitemap is not always at /sitemap.xml, and robots.txt is where a site says so."""
+        server, port = self._serve(robots_sitemap="/sm/pages.xml", at_default_sitemap=False)
+        result = await self._crawl(server, port, max_pages=10)
+
+        assert result["identified_pages"].get("shipping", "").endswith("/info/shipping-policy"), (
+            f"robots.txt named the sitemap and it was not read: {result['identified_pages']}"
+        )
+
+    async def test_a_nested_sitemap_index_is_followed(self):
+        """Large sites publish a sitemapindex of sitemaps, which is what a real store served."""
+        server, port = self._serve(nested=True)
+        result = await self._crawl(server, port, max_pages=10)
+
+        assert result["identified_pages"].get("shipping", "").endswith("/info/shipping-policy"), (
+            f"a nested sitemap index was not followed: {result['identified_pages']}"
+        )
+
+    async def test_a_large_product_sitemap_neither_misleads_nor_blows_the_budget(self):
+        """A real sitemap is mostly products. None of them is a policy, and none is worth fetching."""
+        server, port = self._serve(products=600)
+        result = await self._crawl(server, port, max_pages=8)
+
+        assert result["identified_pages"].get("shipping", "").endswith("/info/shipping-policy")
+        assert not any(
+            "/products/" in u for u in result["identified_pages"].values()
+        ), f"a product page was registered as a policy: {result['identified_pages']}"
+        assert result["pages_crawled"] <= 8, (
+            f"the sitemap pushed the crawl past its page budget: {result['pages_crawled']}"
+        )
