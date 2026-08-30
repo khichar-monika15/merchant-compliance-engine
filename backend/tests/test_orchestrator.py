@@ -494,3 +494,82 @@ class TestGapTitlesReadAsSentences:
         from backend.agents.report_generator import _headline
 
         assert _headline("CSP header missing (PCI 11.6.1)") == "CSP header missing (PCI 11.6.1)"
+
+
+class TestTheCrawlResultCarriesTheEntryUrl:
+    """The crawler records where the homepage resolved to and the agent threw it away.
+
+    `crawl_website` returns `entry_url`, `CrawlResult` declares it, and `webcrawler.run` built the
+    model field by field without it, so every scan carried an empty string. The auditor needs it
+    to tell the front page apart from the rest, and only kept working because it falls back to
+    dict insertion order. A defensive default was hiding a real defect, which is the same shape as
+    the bug this project exists to catch: declared in one place, not honoured by the code that
+    runs.
+
+    It matters most exactly where the fallback is weakest. A site that redirects to another domain
+    has an entry URL that is not the one the merchant typed, and that is the value the report and
+    the auditor both need.
+    """
+
+    @staticmethod
+    def _serve_old_domain_redirecting_to_new():
+        import threading
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+        class NewHandler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                body = b"<!doctype html><html><body><h1>New home</h1></body></html>"
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *args):
+                pass
+
+        new = ThreadingHTTPServer(("127.0.0.1", 0), NewHandler)
+        threading.Thread(target=new.serve_forever, daemon=True).start()
+        new_port = new.server_address[1]
+
+        class OldHandler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(301)
+                self.send_header("Location", f"http://127.0.0.1:{new_port}{self.path}")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+
+            def log_message(self, *args):
+                pass
+
+        old = ThreadingHTTPServer(("127.0.0.1", 0), OldHandler)
+        threading.Thread(target=old.serve_forever, daemon=True).start()
+        return old, new, old.server_address[1], new_port
+
+    async def test_the_agent_records_where_the_homepage_actually_resolved(self):
+        from backend.agents import webcrawler
+        from backend.models.schemas import EngineState, MerchantInput
+
+        old, new, old_port, new_port = self._serve_old_domain_redirecting_to_new()
+        try:
+            state = EngineState(
+                merchant_input=MerchantInput(
+                    website_url=f"http://127.0.0.1:{old_port}",
+                    pan_name="Test Merchant Private Limited",
+                    gst_legal_name="Test Merchant Private Limited",
+                    bank_account_name="Test Merchant Private Limited",
+                    business_type="ecommerce",
+                )
+            )
+            result = await webcrawler.run(state)
+        finally:
+            for s in (old, new):
+                s.shutdown()
+                s.server_close()
+
+        crawl = result["crawl_result"]
+        assert crawl.entry_url, "the crawl result carried no entry URL at all"
+        assert str(new_port) in crawl.entry_url, (
+            f"the entry URL is the one the merchant typed, not where it resolved: "
+            f"{crawl.entry_url}"
+        )

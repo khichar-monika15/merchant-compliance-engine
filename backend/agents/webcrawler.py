@@ -21,6 +21,7 @@ async def run(state: EngineState) -> dict:
         )
 
         crawl_result = CrawlResult(
+            entry_url=raw["entry_url"],
             pages_found={k: v for k, v in raw["pages_found"].items()},
             scripts_found=[ScriptInfo(**s) for s in raw["scripts_found"]],
             http_headers=raw["http_headers"],

@@ -34,7 +34,7 @@ is needed for any of this.** Every score in the report is produced by rules; the
 policy quality when a credential is present and the report says which path it took.
 
 ```bash
-uv run pytest backend/tests/                       # 569 tests, no credentials needed
+uv run pytest backend/tests/                       # 570 tests, no credentials needed
 uv run python -m backend.tests.validate_ground_truth   # 4/4 against recorded expectations
 ```
 
@@ -211,6 +211,38 @@ quality 8 then 1 on the same URL, depending on which pages happened to arrive wh
 Each has a test that was watched failing first, and the synthetic ground truth did not move for any
 of them. That is the point: these were failures the lab could not produce.
 
+### Where it ended up
+
+Three runs of each site, rule path, 30 August 2026. **Every score and every policy quality was
+identical across all three runs of a site.** Before the session fix the same site scored 59 then 55,
+with shipping quality 8 then 1 on the same URL, so reproducibility is the result here rather than an
+assumption.
+
+| Site | Score | Grade | Refund | Privacy | T&C | Contact | Shipping |
+|---|---|---|---|---|---|---|---|
+| Homeware and gifting, Shopify | 65 | C | 6 | 6 | 6 | 10 | 6 |
+| Men's grooming, Shopify | 62 | C | 6 | 6 | 5 | 4 | 8 |
+| Skincare, rebranded onto a new domain | 63 | C | 6 | 2 | 0 | 10 | 10 |
+
+Two of those numbers were checked by hand rather than trusted, because both looked like the
+generous-direction errors this engine had already been caught making.
+
+The skincare site scores 10 for a shipping policy while publishing no shipping policy page. Reading
+the page it graded settles it: the disclosure is a section headed "Shipping Policy" inside the refund
+policy page, covering handling charges, dispatch in 1 to 4 business days, courier and tracking, and
+delivery times by state. RBI-007 asks for delivery timelines, shipping charges and areas served, and
+all three are published. The score is right, and it is exactly why the whole-site fallback was kept
+after the homepage was excluded from it.
+
+Its 0 for terms is a genuine miss in the safe direction: nothing links a terms page, no sitemap entry
+matches, and no conventional URL answers, so the engine reports it missing rather than inventing it.
+
+**What these numbers are not.** Three sites is enough to break a crawler and nowhere near enough to
+calibrate a grade. All three landed in band C, which says more about mid-market Indian D2C storefronts
+on Shopify than about the engine's resolution. And the KYC axis contributes a meaningless 100 to each
+of them, because the same public legal name was typed into all three document fields; nothing on a
+website can confirm what a PAN card says.
+
 ---
 
 ## What broke, and what it changed
@@ -280,8 +312,17 @@ Zustand. Razorpay Python SDK in test mode. AWS Bedrock or Anthropic for the mode
 ## Known limitations
 
 - **The four test sites are ones we wrote.** The numbers show the engine discriminates between
-  compliance levels. They are not a claim about accuracy on real merchant websites, which has not
-  been measured.
+  compliance levels. They are not a claim about accuracy on real merchant websites. Three live
+  storefronts were scanned to find the bugs above; three sites is enough to break a crawler and
+  nowhere near enough to calibrate a grade.
+- **KYC is not exercised by a real-site scan.** The three document names are typed by the merchant
+  and nothing on the website can confirm them, so passing the same public legal name three times
+  scores a clean 100 that means nothing. On the synthetic sites the mismatches are planted, which
+  is the only place that axis is actually tested.
+- **A policy the site publishes nowhere findable is reported missing.** Discovery reads the
+  homepage links, the sitemap, and a list of conventional URLs. A policy that is none of those,
+  reachable only from inside a checkout flow, will not be found. That is a false negative, and it
+  is the direction we would rather fail in.
 - Ground truth is recorded on the deterministic path so it reproduces on a clean clone. With a
   model configured, policy quality can move a point or two.
 - Generated policies are drafts for a merchant to review, not legal advice.
