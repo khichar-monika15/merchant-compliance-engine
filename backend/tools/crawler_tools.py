@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from contextlib import AsyncExitStack
 from urllib.parse import urljoin, urlparse
 
@@ -9,6 +10,19 @@ from playwright.async_api import Browser, async_playwright
 from backend import knowledge
 from backend.config import get_settings
 from backend.tools.script_analyzer import extract_scripts
+
+
+# How long to let a client-rendered page settle after the DOM is ready, before giving up on
+# quiet and reading the content anyway.
+_SETTLE_MS = 4000
+
+# Hosted storefronts keep their policies under a fixed prefix rather than at the bare path, and
+# those are exactly the sites that do not link every policy from the homepage.
+_POLICY_PATH_PREFIXES = ("", "/pages", "/policies")
+
+# A probe is one cheap HTTP GET with no rendering, and they run concurrently, but a merchant site
+# should not receive an unbounded burst of requests from a compliance scan.
+_MAX_PROBES = 60
 
 
 def _policy_url_patterns() -> dict[str, list[str]]:
@@ -119,6 +133,60 @@ def _classify_link_text(text: str) -> str | None:
     return None
 
 
+def _probe_candidates(missing: list[str]) -> list[tuple[str, str]]:
+    """Every (policy type, path) worth asking for, in declared order, capped."""
+    candidates: list[tuple[str, str]] = []
+    for ptype in missing:
+        for pattern in POLICY_URL_PATTERNS.get(ptype, []):
+            for prefix in _POLICY_PATH_PREFIXES:
+                candidates.append((ptype, f"{prefix}{pattern}"))
+    return candidates[:_MAX_PROBES]
+
+
+async def _probe_for_policy_pages(request, base_url: str, missing: list[str]) -> dict[str, str]:
+    """Ask for each undiscovered policy at the URLs the knowledge base says it lives at.
+
+    Link discovery only sees what a homepage chooses to expose. Real stores link privacy and terms
+    in the footer and leave refund and shipping to the checkout flow, so those pages were never
+    fetched and the auditor graded whatever other page happened to hold a keyword, reporting a
+    quality of 1 for a policy that scores 6 when the right page is read. The patterns to try were
+    already declared on every check; they were only ever used to label links the crawler had
+    already found, never to go looking. Every synthetic test site links all of its policies from
+    the footer, which is why link discovery alone looked sufficient.
+
+    A probe is a plain HTTP GET with no rendering, so this costs a fraction of a page load. Only
+    types that link discovery missed are probed, so this can add a page but never displace one.
+    """
+    base_domain = _get_base_domain(base_url)
+    candidates = _probe_candidates(missing)
+
+    async def probe(ptype: str, path: str) -> tuple[str, str] | None:
+        try:
+            response = await request.get(urljoin(base_url, path), timeout=10000)
+        except Exception:
+            return None
+        if not response.ok:
+            return None
+        # A site that answers an unknown path with a redirect to its homepage would otherwise
+        # register the homepage as the refund policy. Requiring the URL we landed on to still read
+        # as this policy type accepts /refund -> /policies/refund-policy and rejects /refund -> /.
+        final = response.url
+        if _get_base_domain(final) != base_domain:
+            return None
+        if _classify_url_as_policy(final) != ptype:
+            return None
+        return ptype, _canonical_page(final)
+
+    results = await asyncio.gather(*(probe(t, p) for t, p in candidates))
+
+    # Declared order decides, so /refund-policy beats /cancel when a site answers both.
+    found: dict[str, str] = {}
+    for hit in results:
+        if hit and hit[0] not in found:
+            found[hit[0]] = hit[1]
+    return found
+
+
 def _detect_tech_stack(html: str, headers: dict[str, str], cookies: list[str]) -> dict[str, list[str]]:
     """Match the crawled page against the detection rules in tech_stack_signatures.json.
 
@@ -187,14 +255,26 @@ async def crawl_website(url: str, max_pages: int = 20, timeout: int = 30) -> dic
             page = await context.new_page()
             response_headers: dict[str, str] = {}
             try:
+                # `domcontentloaded` reliably fires. `networkidle` waits for 500ms of network
+                # silence, which a real merchant site with analytics beacons, a chat widget and
+                # polling never has, so waiting for it here spent the whole timeout and then
+                # discarded a page whose HTML had been ready for seconds. Every synthetic test
+                # site is static and goes idle at once, which is why this only failed off the lab.
                 response = await page.goto(
                     page_url,
-                    wait_until="networkidle",
+                    wait_until="domcontentloaded",
                     timeout=timeout * 1000,
                 )
                 if response:
                     response_headers = dict(response.headers)
-                await page.wait_for_load_state("domcontentloaded")
+
+                # Client-rendered content still needs a moment. Bounded, and failing to settle is
+                # normal on the open web rather than an error, so the page is kept either way.
+                try:
+                    await page.wait_for_load_state("networkidle", timeout=_SETTLE_MS)
+                except Exception:
+                    pass
+
                 html = await page.content()
                 return html, response_headers
             except Exception as e:
@@ -235,6 +315,19 @@ async def crawl_website(url: str, max_pages: int = 20, timeout: int = 30) -> dic
             # Detect tech stack from homepage
             cookies = [c["name"] for c in await context.cookies()]
             tech_stack_signals = _detect_tech_stack(html, headers, cookies)
+
+            # Whatever the homepage did not link, go and ask for directly.
+            missing = [p for p in POLICY_URL_PATTERNS if p not in identified_pages]
+            if missing:
+                try:
+                    probed = await _probe_for_policy_pages(context.request, url, missing)
+                except Exception as e:
+                    probed = {}
+                    crawl_errors.append(f"policy probe: {e}")
+                for ptype, found_url in probed.items():
+                    identified_pages[ptype] = found_url
+                    if found_url not in all_links:
+                        all_links.append(found_url)
 
         # Crawl identified policy pages and a few more internal links
         priority_urls = list(identified_pages.values())

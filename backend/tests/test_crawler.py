@@ -162,3 +162,203 @@ class TestTheScannedUrlIsChecked:
 
         assert url_refusal_reason("http://127.0.0.1:4001/", allow_loopback=True) is None
         assert url_refusal_reason("http://127.0.0.1:4001/", allow_loopback=False)
+
+
+class TestASiteThatNeverGoesIdleIsStillCrawled:
+    """Real merchant sites do not go network idle, and the crawler discarded them entirely.
+
+    `page.goto(wait_until="networkidle")` waits for 500ms of network silence. An e-commerce site
+    with analytics beacons, a chat widget and polling never has 500ms of silence, so goto raised
+    a timeout and the whole page was thrown away even though its HTML had been ready for seconds.
+    Every synthetic test site is static and goes idle instantly, which is exactly why this
+    survived: it works in the lab and fails on the open web.
+    """
+
+    @staticmethod
+    def _serve_a_noisy_page():
+        """A page that keeps fetching forever, so networkidle can never fire."""
+        import threading
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+        html = (
+            b"<!doctype html><html><head><title>Noisy</title></head><body>"
+            b"<h1>Refund Policy</h1><p>Our refund policy is described here in detail.</p>"
+            b"<a href='/contact.html'>Contact us</a>"
+            b"<script>setInterval(function(){fetch('/beacon?t='+Date.now())},100)</script>"
+            b"</body></html>"
+        )
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                body = b"ok" if self.path.startswith("/beacon") else html
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *args):
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        return server, server.server_address[1]
+
+    async def test_the_page_is_returned_despite_constant_network_activity(self):
+        from backend.tools.crawler_tools import crawl_website
+
+        server, port = self._serve_a_noisy_page()
+        try:
+            result = await crawl_website(f"http://127.0.0.1:{port}", max_pages=2, timeout=20)
+        finally:
+            server.shutdown()
+            server.server_close()
+
+        assert result["pages_found"], (
+            f"a page that never goes network idle was discarded entirely: "
+            f"{result.get('crawl_errors')}"
+        )
+        html = next(iter(result["pages_found"].values()))
+        assert "Refund Policy" in html, "the page was fetched but its content was not captured"
+
+    async def test_it_does_not_take_the_whole_timeout(self):
+        """The point is to stop waiting for silence, not to wait longer for it."""
+        import time
+
+        from backend.tools.crawler_tools import crawl_website
+
+        server, port = self._serve_a_noisy_page()
+        try:
+            start = time.perf_counter()
+            await crawl_website(f"http://127.0.0.1:{port}", max_pages=1, timeout=30)
+            elapsed = time.perf_counter() - start
+        finally:
+            server.shutdown()
+            server.server_close()
+
+        assert elapsed < 25, f"the crawl still waited {elapsed:.1f}s for a page that loads instantly"
+
+
+class TestPolicyPagesAreProbedNotOnlyDiscovered:
+    """The declared url_patterns find pages, they do not merely label links.
+
+    On a real store the crawler saw only the links the homepage happened to expose, so a refund
+    policy sitting at its conventional URL but not linked from the front page was never fetched.
+    The auditor then graded whatever other page contained a couple of keywords and reported a
+    quality of 1 for a policy that scores 6 when the right page is read. Every synthetic test site
+    links all of its policies from the footer, which is why this only appeared off the lab.
+    """
+
+    @staticmethod
+    def _serve_site_with_unlinked_policy():
+        """A homepage linking only to /about, with a real refund policy at its conventional URL."""
+        import threading
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+        home = b"<!doctype html><html><body><h1>Shop</h1><a href='/about'>About</a></body></html>"
+        about = b"<!doctype html><html><body><h1>About us</h1><p>We sell things.</p></body></html>"
+        refund = (
+            b"<!doctype html><html><body><h1>Refund Policy</h1><p>"
+            + (b"You may request a refund or cancellation within 30 days. "
+               b"Our return policy covers damaged goods. ") * 30
+            + b"</p></body></html>"
+        )
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                path = self.path.split("?")[0].rstrip("/")
+                body = {"": home, "/about": about, "/refund-policy": refund}.get(path)
+                self.send_response(200 if body else 404)
+                self.send_header("Content-Type", "text/html")
+                body = body or b"not found"
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *args):
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        return server, server.server_address[1]
+
+    async def test_an_unlinked_policy_at_a_declared_url_is_found(self):
+        from backend.tools.crawler_tools import crawl_website
+
+        server, port = self._serve_site_with_unlinked_policy()
+        try:
+            result = await crawl_website(f"http://127.0.0.1:{port}", max_pages=10, timeout=20)
+        finally:
+            server.shutdown()
+            server.server_close()
+
+        assert "refund" in result["identified_pages"], (
+            "a refund policy at the conventional URL was never found, because nothing on the "
+            f"homepage linked to it. Identified: {result['identified_pages']}"
+        )
+        html = result["pages_found"].get(result["identified_pages"]["refund"], "")
+        assert "Refund Policy" in html, "the page was identified but its content was not fetched"
+
+    async def test_probing_does_not_invent_pages_that_are_missing(self):
+        """A 404 must not be recorded as a policy page."""
+        from backend.tools.crawler_tools import crawl_website
+
+        server, port = self._serve_site_with_unlinked_policy()
+        try:
+            result = await crawl_website(f"http://127.0.0.1:{port}", max_pages=10, timeout=20)
+        finally:
+            server.shutdown()
+            server.server_close()
+
+        assert "privacy" not in result["identified_pages"], (
+            "a privacy policy that does not exist was recorded as found"
+        )
+
+    @staticmethod
+    def _serve_site_that_redirects_unknown_paths_home():
+        """A soft 404: every unknown path answers 302 to the homepage, which is very common."""
+        import threading
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+        home = b"<!doctype html><html><body><h1>Shop</h1><p>We sell things.</p></body></html>"
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                if self.path.split("?")[0].rstrip("/") == "":
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html")
+                    self.send_header("Content-Length", str(len(home)))
+                    self.end_headers()
+                    self.wfile.write(home)
+                    return
+                self.send_response(302)
+                self.send_header("Location", "/")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+
+            def log_message(self, *args):
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        return server, server.server_address[1]
+
+    async def test_a_soft_404_that_lands_on_the_homepage_is_not_a_policy_page(self):
+        """Otherwise the homepage gets graded as the refund policy, which is the older bug back.
+
+        A 302 to `/` answers 200 after redirects, so the status alone says the page exists. What
+        rejects it is that the URL finally landed on no longer reads as a refund policy.
+        """
+        from backend.tools.crawler_tools import crawl_website
+
+        server, port = self._serve_site_that_redirects_unknown_paths_home()
+        try:
+            result = await crawl_website(f"http://127.0.0.1:{port}", max_pages=10, timeout=20)
+        finally:
+            server.shutdown()
+            server.server_close()
+
+        assert result["identified_pages"] == {}, (
+            "a site with no policy pages at all reported some, so the homepage would be graded "
+            f"as a policy: {result['identified_pages']}"
+        )

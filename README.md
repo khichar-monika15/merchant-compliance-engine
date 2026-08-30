@@ -34,7 +34,7 @@ is needed for any of this.** Every score in the report is produced by rules; the
 policy quality when a credential is present and the report says which path it took.
 
 ```bash
-uv run pytest backend/tests/                       # 553 tests, no credentials needed
+uv run pytest backend/tests/                       # 558 tests, no credentials needed
 uv run python -m backend.tests.validate_ground_truth   # 4/4 against recorded expectations
 ```
 
