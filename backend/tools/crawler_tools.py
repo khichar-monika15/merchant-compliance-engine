@@ -24,6 +24,11 @@ _POLICY_PATH_PREFIXES = ("", "/pages", "/policies")
 # should not receive an unbounded burst of requests from a compliance scan.
 _MAX_PROBES = 60
 
+_USER_AGENT = (
+    "Mozilla/5.0 (compatible; MCIEBot/1.0; "
+    "+https://github.com/khichar-monika15/merchant-compliance-engine)"
+)
+
 
 def _policy_url_patterns() -> dict[str, list[str]]:
     """Discovery patterns from the RBI checklist, plus the PCI payment page list.
@@ -284,12 +289,16 @@ async def crawl_website(url: str, max_pages: int = 20, timeout: int = 30) -> dic
     async with async_playwright() as p, AsyncExitStack() as stack:
         browser: Browser = await p.chromium.launch(headless=True)
         stack.push_async_callback(browser.close)
-        context = await browser.new_context(
-            user_agent="Mozilla/5.0 (compatible; MCIEBot/1.0; +https://github.com/khichar-monika15/merchant-compliance-engine)"
-        )
-        stack.push_async_callback(context.close)
 
-        async def fetch_page(page_url: str) -> tuple[str, dict[str, str], str]:
+        async def fetch_page(page_url: str) -> tuple[str, dict[str, str], str, list[str]]:
+            # A context per page, not one for the crawl. Measured on a live Shopify store: sharing
+            # a context returned the homepage at 1.6MB and then a 10KB, 26 word skeleton for every
+            # policy page after it, because the storefront serves a client-routing shell to a
+            # session that already has the app loaded. The engine graded those skeletons and
+            # reported a perfectly good shipping policy as quality 1. A fresh context returned
+            # every page in full. Neither a longer settle nor a browser user agent changed it, so
+            # this is the session, not rendering time and not being taken for a bot.
+            context = await browser.new_context(user_agent=_USER_AGENT)
             page = await context.new_page()
             response_headers: dict[str, str] = {}
             try:
@@ -314,20 +323,29 @@ async def crawl_website(url: str, max_pages: int = 20, timeout: int = 30) -> dic
                     pass
 
                 html = await page.content()
-                return html, response_headers, page.url
+                cookies = [c["name"] for c in await context.cookies()]
+                return html, response_headers, page.url, cookies
             except Exception as e:
                 crawl_errors.append(f"{page_url}: {e}")
-                return "", {}, page_url
+                return "", {}, page_url, []
             finally:
                 await page.close()
+                await context.close()
+
+        # Standalone request contexts, so neither resolving the redirect chain nor probing for
+        # policy URLs spends the one anonymous request a session-aware site will answer in full.
+        api = await p.request.new_context(user_agent=_USER_AGENT)
+        stack.push_async_callback(api.dispose)
 
         # Fetch homepage, but resolve where it actually leads before pointing a browser at it.
-        entry, refused = await _resolve_entry_url(context.request, url)
+        entry, refused = await _resolve_entry_url(api, url)
         if refused:
             crawl_errors.append(refused)
             entry = None
 
-        html, headers, landed = (await fetch_page(entry)) if entry else ("", {}, url)
+        html, headers, landed, cookies = (
+            (await fetch_page(entry)) if entry else ("", {}, url, [])
+        )
         if html:
             # A merchant who rebranded is still a merchant. wowskinscienceindia.com answers 301 to
             # buywow.in, and pinning the base domain to what was typed meant every absolute link on
@@ -364,14 +382,13 @@ async def crawl_website(url: str, max_pages: int = 20, timeout: int = 30) -> dic
                         identified_pages[ptype_text] = full_url
 
             # Detect tech stack from homepage
-            cookies = [c["name"] for c in await context.cookies()]
             tech_stack_signals = _detect_tech_stack(html, headers, cookies)
 
             # Whatever the homepage did not link at a declared URL, go and ask for directly.
             missing = [p for p in POLICY_URL_PATTERNS if p not in url_matched]
             if missing:
                 try:
-                    probed = await _probe_for_policy_pages(context.request, url, missing)
+                    probed = await _probe_for_policy_pages(api, url, missing)
                 except Exception as e:
                     probed = {}
                     crawl_errors.append(f"policy probe: {e}")
@@ -391,7 +408,7 @@ async def crawl_website(url: str, max_pages: int = 20, timeout: int = 30) -> dic
                 break
             if not _is_new_page(page_url, pages_found):
                 continue
-            html, headers, _ = await fetch_page(page_url)
+            html, headers, _, _ = await fetch_page(page_url)
             if html:
                 pages_found[page_url] = html
                 http_headers[page_url] = headers

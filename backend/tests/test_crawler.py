@@ -565,3 +565,73 @@ class TestPolicyPagesAreProbedNotOnlyDiscovered:
             "a site with no policy pages at all reported some, so the homepage would be graded "
             f"as a policy: {result['identified_pages']}"
         )
+
+
+class TestASessionAwareSiteIsNotGradedOnItsShell:
+    """A storefront served the real page once and a skeleton to every later request in the session.
+
+    Measured on a live Shopify store: with one browser context shared across the crawl the
+    homepage came back at 1.6MB and every policy page after it at 10KB and 26 words. With a fresh
+    context per page every one came back in full. The engine was grading a loading skeleton and
+    reporting the merchant's perfectly good shipping policy as quality 1, which is a false
+    negative in the direction that costs a real merchant real money.
+
+    Neither a longer settle nor a browser user agent changed it, so this is about the session, not
+    about rendering time or being taken for a bot.
+    """
+
+    @staticmethod
+    def _serve_site_that_shells_a_returning_session():
+        import threading
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+        policy = (
+            b"<!doctype html><html><body><h1>Shipping Policy</h1><p>"
+            + (b"Orders are dispatched within two days by courier. Delivery time is five to "
+               b"seven days. Shipping charges are shown at checkout. ") * 30
+            + b"</p></body></html>"
+        )
+        home = (
+            b"<!doctype html><html><body><h1>Shop</h1>"
+            b"<a href='/shipping-policy'>Shipping Policy</a></body></html>"
+        )
+        shell = b"<!doctype html><html><body><div id='app'></div></body></html>"
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                returning = "seen=1" in (self.headers.get("Cookie") or "")
+                path = self.path.split("?")[0].rstrip("/")
+                if returning:
+                    body = shell
+                else:
+                    body = {"": home, "/shipping-policy": policy}.get(path, b"not found")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.send_header("Set-Cookie", "seen=1; Path=/")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *args):
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        return server, server.server_address[1]
+
+    async def test_the_policy_page_is_read_not_the_skeleton(self):
+        from backend.tools.crawler_tools import crawl_website
+
+        server, port = self._serve_site_that_shells_a_returning_session()
+        try:
+            result = await crawl_website(f"http://127.0.0.1:{port}", max_pages=5, timeout=20)
+        finally:
+            server.shutdown()
+            server.server_close()
+
+        url = result["identified_pages"].get("shipping", "")
+        assert url, f"the shipping policy was never identified: {result['identified_pages']}"
+        html = result["pages_found"].get(url, "")
+        assert "dispatched within two days" in html, (
+            f"the crawl kept a {len(html)} byte skeleton instead of the policy page"
+        )
