@@ -309,3 +309,83 @@ async def _issues_llm(prompt: str, max_tokens: int = 512) -> str:
 
 async def _bare_fence_llm(prompt: str, max_tokens: int = 512) -> str:
     return '```\n{"score": 7, "issues": [], "details": "adequate"}\n```'
+
+
+class TestTheHomepageIsNotAPolicyPage:
+    """A storefront advertising free delivery was graded as having a shipping policy.
+
+    When no page is identified for a policy type the auditor falls back to searching every page
+    it crawled, and the homepage is always one of them. Two body keywords is the bar, so a real
+    store whose front page says "free delivery above 499" and "shipping across India" cleared it
+    and RBI-007 was reported found at quality 5, sourced from the homepage. Measured across the
+    four synthetic sites and two real ones, that fallback reaches a verdict in exactly one place,
+    and that place is this false positive.
+
+    The fallback still has a real job: a combined "Terms, Shipping and Returns" page is a genuine
+    disclosure the crawler did not classify. What RBI asks for is a published policy, and passing
+    mentions in front-page marketing copy are not one.
+    """
+
+    MARKETING_HOME = """
+    <html><body><h1>Shop skincare</h1>
+    <p>Free delivery above 499. Fast shipping across India on every order.</p>
+    <p>Loved by a million customers. Shop the monsoon sale now. New arrivals every week.
+       Our bestsellers include face wash, serum and sunscreen. Buy two get one free.</p>
+    </body></html>
+    """
+
+    COMBINED_POLICY = """
+    <html><body><h1>Terms, Shipping and Returns</h1>
+    <p>Orders are dispatched within 2 business days by courier. Delivery time is 5 to 7 days.
+       Shipping charges are shown at checkout. We deliver across India.</p>
+    <p>You may request a refund or cancellation within 30 days of delivery. Our return policy
+       covers damaged goods. Refunds reach the original payment method in 7 working days.</p>
+    </body></html>
+    """
+
+    @staticmethod
+    def _state(pages: dict[str, str], merchant):
+        from backend.models.schemas import CrawlResult, EngineState
+
+        return EngineState(
+            merchant_input=merchant,
+            crawl_result=CrawlResult(
+                pages_found=pages,
+                entry_url=next(iter(pages)),
+                identified_pages={},
+                pages_crawled=len(pages),
+            ),
+        )
+
+    async def test_marketing_copy_on_the_homepage_is_not_a_shipping_policy(
+        self, merchant_input_freshkart
+    ):
+        from backend.agents import compliance_auditor
+
+        merchant_input_freshkart.business_type = "ecommerce"
+        state = self._state({"https://shop.example/": self.MARKETING_HOME}, merchant_input_freshkart)
+        result = (await compliance_auditor.run(state))["compliance_result"]
+
+        assert result.shipping_policy is not None, "RBI-007 should apply to an ecommerce merchant"
+        assert not result.shipping_policy.found, (
+            "front-page delivery marketing was graded as a published shipping policy, "
+            f"quality {result.shipping_policy.quality_score} from "
+            f"{result.shipping_policy.url}"
+        )
+
+    async def test_a_combined_policy_page_is_still_found(self, merchant_input_freshkart):
+        """The fallback must keep working for a real disclosure the crawler did not classify."""
+        from backend.agents import compliance_auditor
+
+        merchant_input_freshkart.business_type = "ecommerce"
+        state = self._state(
+            {
+                "https://shop.example/": self.MARKETING_HOME,
+                "https://shop.example/info": self.COMBINED_POLICY,
+            },
+            merchant_input_freshkart,
+        )
+        result = (await compliance_auditor.run(state))["compliance_result"]
+
+        assert result.shipping_policy.found, "a combined policy page was not found by the fallback"
+        assert result.shipping_policy.url == "https://shop.example/info"

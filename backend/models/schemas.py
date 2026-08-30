@@ -31,6 +31,10 @@ class ScriptInfo(BaseModel):
 
 
 class CrawlResult(BaseModel):
+    # Where the homepage actually resolved to, which is not always what the merchant typed: a
+    # rebranded site redirects to a new domain. Recorded so the auditor can tell the front page
+    # apart from the rest without relying on dict insertion order.
+    entry_url: str = ""
     pages_found: dict[str, str] = {}          # {url: html_content}
     scripts_found: list[ScriptInfo] = []
     http_headers: dict[str, dict] = {}         # {url: {header: value}}

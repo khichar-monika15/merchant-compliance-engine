@@ -256,6 +256,8 @@ async def run(state: EngineState) -> dict:
         crawl = state.crawl_result
         pages = crawl.pages_found if crawl else {}
         identified = crawl.identified_pages if crawl else {}
+        # Falls back to insertion order for a CrawlResult built before entry_url existed.
+        entry_url = (crawl.entry_url if crawl else "") or next(iter(pages), "")
         all_html = " ".join(pages.values())
 
         async def _score_policy(check_id: str, policy_type: str) -> ComplianceCheck:
@@ -268,9 +270,17 @@ async def run(state: EngineState) -> dict:
             found = bool(page_html)
             quality_score = _policy_quality(page_html, check_def) if found else 0
 
-            # Otherwise look for the policy inline on some other page
+            # Otherwise look for the policy inline on some other page, but never the front page.
+            # A store whose homepage says "free delivery above 499" cleared the two-keyword bar
+            # and was reported as having a published shipping policy at quality 5. The homepage is
+            # in every crawl whatever else was found, so it is the page most likely to match by
+            # accident, and it won even when a real combined policy page was also present. RBI
+            # asks for a published policy; passing mentions in marketing copy are not one. A
+            # combined "Terms, Shipping and Returns" page is, and is still reached here.
             if not found:
                 for url, html in pages.items():
+                    if url == entry_url:
+                        continue
                     matched, score = _search_page_for_policy(html, check_def)
                     if matched:
                         page_url, page_html, found, quality_score = url, html, True, score

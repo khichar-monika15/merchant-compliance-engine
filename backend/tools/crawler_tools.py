@@ -409,6 +409,7 @@ async def crawl_website(url: str, max_pages: int = 20, timeout: int = 30) -> dic
             unique_scripts.append(s)
 
     return {
+        "entry_url": url,
         "pages_found": pages_found,
         "scripts_found": unique_scripts,
         "http_headers": http_headers,
