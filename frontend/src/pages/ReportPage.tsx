@@ -87,6 +87,20 @@ export function ReportPage() {
         Back to dashboard
       </Link>
 
+      {/*
+        A PDF leaves the app and gets mailed on, so on its own it has to say which site was
+        scanned, which run produced it and when. On screen all three are in the URL bar, the
+        breadcrumb and the tab title; on paper there is nothing but the page.
+      */}
+      <div className="hidden print:block">
+        <p className="text-caption text-text-tertiary">
+          Merchant Compliance Intelligence Engine, readiness report
+        </p>
+        <p className="font-mono text-caption text-text-tertiary">
+          Scan {jobId} | generated {new Date().toLocaleString()}
+        </p>
+      </div>
+
       <Card>
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
           <ScoreRing score={report.overall_score} grade={report.grade} />

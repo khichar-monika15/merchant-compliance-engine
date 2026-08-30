@@ -123,13 +123,74 @@
     min-height: 0 !important;
   }
 
-  /* Cards, list rows and table rows should not be split down the middle by a page break. */
-  article,
-  section,
+  /*
+   * Cards, list rows and table rows should not be split down the middle by a page break.
+   *
+   * This used to say `article, section, li, tr`. A Card renders a <div>, so it matched no card
+   * at all, and the only thing it did match was the <section> wrapping each tab, which is
+   * taller than a sheet of paper. A browser answers an unkeepable `avoid` by starting the
+   * element on a fresh page and breaking it anyway, so the rule bought nothing and cost the
+   * bottom two thirds of the page before each one.
+   */
+  [data-print-card],
   li,
   tr {
     break-inside: avoid;
     page-break-inside: avoid;
+  }
+
+  /*
+   * A <pre> does not wrap, and a printed page has nowhere to scroll to. Making the wrapper
+   * `overflow: visible` (below) only moves the clipping from the wrapper to the paper edge, so
+   * the starter code lost every character past ~70 columns. Wrapping is the only fix that
+   * keeps the text.
+   */
+  pre,
+  code {
+    white-space: pre-wrap !important;
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
+
+  /*
+   * On screen a clipped label is one hover away from being readable. On paper it is gone, so
+   * every truncation is undone: a script source or a header name has to survive into the PDF
+   * in full or the inventory cannot be audited from it.
+   */
+  .truncate,
+  [class*='line-clamp'] {
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+    -webkit-line-clamp: none !important;
+  }
+
+  /*
+   * Lifting the cap above is only half of it. A script URL is one unbroken token, so the cell's
+   * minimum width becomes the whole URL and the table pushes off the right edge instead. Only
+   * `anywhere` lets a token break when the intrinsic width is being worked out; `break-word`
+   * gives way after the column has already been sized.
+   */
+  .truncate,
+  td,
+  th {
+    overflow-wrap: anywhere;
+  }
+
+  table {
+    width: 100% !important;
+  }
+
+  /*
+   * Print takes the page exactly as it stands. A card still fading in prints half transparent,
+   * so whatever is mid-flight when the dialog opens is what the merchant keeps. Cancelling the
+   * animation drops each element to its resting style, which is the finished one.
+   */
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
   }
 
   h1,
@@ -155,10 +216,19 @@
     display: none !important;
   }
 
-  /* Panels that scroll on screen must show everything on paper. */
+  /*
+   * Panels that scroll on screen must show everything on paper.
+   *
+   * Lifting `overflow` alone was not enough, because what makes these boxes short is a 28rem
+   * `max-height`, and on the starter code that cap is an inline style. An `!important`
+   * declaration in a stylesheet outranks a plain inline one, which is the only reason this
+   * reaches it. Without the cap lifted, two thirds of every drafted policy and of the starter
+   * code were cut off the PDF with nothing to say they had been.
+   */
   .overflow-x-auto,
   .overflow-y-auto,
   .overflow-auto {
+    max-height: none !important;
     overflow: visible !important;
   }
 }

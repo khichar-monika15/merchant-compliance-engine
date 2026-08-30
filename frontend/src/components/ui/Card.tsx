@@ -22,6 +22,9 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
   return (
     <div
       ref={ref}
+      // The print stylesheet keeps a card whole across a page break. It used to select
+      // `article, section`, which a Card is not, so no card was ever protected.
+      data-print-card
       className={cn(
         'rounded-lg border border-surface-border bg-surface-card',
         padded && 'p-5',

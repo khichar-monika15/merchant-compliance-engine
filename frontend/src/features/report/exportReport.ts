@@ -104,18 +104,9 @@ export function exportMarkdown(
  * the reader gets the whole report rather than whichever tab happened to be open.
  */
 export function exportPdf(): void {
-  document.body.classList.add('printing')
-
-  const cleanup = () => {
-    document.body.classList.remove('printing')
-    window.removeEventListener('afterprint', cleanup)
-  }
-  window.addEventListener('afterprint', cleanup)
-
-  // One frame so the print-only layout is applied before the dialog snapshots the page.
-  requestAnimationFrame(() => {
-    window.print()
-    // Safari does not always fire afterprint, so this is the belt to that braces.
-    setTimeout(cleanup, 1000)
-  })
+  // This used to add a `printing` class to <body> first, behind a requestAnimationFrame so the
+  // class could apply before the dialog opened. No stylesheet has ever selected `.printing`,
+  // so the whole dance guarded nothing. `@media print` already scopes the print layout, and
+  // the browser applies it before it paints the dialog.
+  window.print()
 }

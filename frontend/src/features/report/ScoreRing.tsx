@@ -43,7 +43,21 @@ export function ScoreRing({ score, grade, size = 132, className }: ScoreRingProp
       if (t < 1) frame = requestAnimationFrame(tick)
     }
     frame = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(frame)
+
+    // Print takes the page as it stands, so a report sent to paper during that second showed a
+    // number the engine never produced, in a file the merchant keeps. `beforeprint` fires ahead
+    // of the print layout, which is the moment to abandon the count. The frame has to be
+    // cancelled with it, or the next tick overwrites the real score straight back out.
+    const settle = () => {
+      cancelAnimationFrame(frame)
+      setShown(score)
+    }
+    window.addEventListener('beforeprint', settle)
+
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('beforeprint', settle)
+    }
   }, [score])
 
   return (
