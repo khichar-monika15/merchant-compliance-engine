@@ -182,11 +182,13 @@ def _free_port() -> int:
 def served_report(tmp_path_factory):
     """The real app, serving the built SPA, with one report already in the database."""
     if not (DIST / "index.html").exists():
-        # Skipping locally is a convenience. Skipping on CI would turn this whole file into a
-        # green no-op the first time the build step broke, which is the failure mode these
-        # tests exist to catch in the first place.
+        # Skipping is a convenience for anyone who has not built the frontend, including the
+        # backend CI job, which has no Node. The print-layout job does build it, and there a
+        # missing dist means the build step broke, which would turn this whole file into a
+        # green no-op: the exact failure mode these tests exist to catch. So that job asks to
+        # be failed instead. Keying this off `CI` was wrong; every job sets it.
         message = "frontend/dist is not built; run `npm run build` in frontend/"
-        if os.environ.get("CI"):
+        if os.environ.get("MCIE_PRINT_TESTS_REQUIRED"):
             pytest.fail(message)
         pytest.skip(message)
 

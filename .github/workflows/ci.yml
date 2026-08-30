@@ -96,9 +96,11 @@ jobs:
       - name: Install Playwright browser
         run: uv run playwright install --with-deps chromium
 
-      # A missing dist/ skips these locally and fails them here, so a broken build step cannot
-      # turn the whole file into a green no-op.
+      # This is the one job that builds the dist, so here a missing dist means the build step
+      # above broke. Without this the file would skip itself and report success.
       - name: Measure the printed report
+        env:
+          MCIE_PRINT_TESTS_REQUIRED: '1'
         run: uv run pytest backend/tests/test_print_layout.py -v --no-header
 
   frontend:
