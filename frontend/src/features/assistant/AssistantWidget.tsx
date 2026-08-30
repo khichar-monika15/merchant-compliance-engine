@@ -7,13 +7,20 @@ import type { AssistantTurn } from '@/api/types'
 import { Badge, Spinner, cn } from '@/components/ui'
 
 /**
- * Questions worth one tap. Deliberately about the merchant's own report rather than about
- * compliance in general, because that is where the assistant is grounded and most useful.
+ * Questions worth one tap. These have to match what is actually on screen: offering "Why did I
+ * get this score?" on a dashboard with no scans produced an answer explaining that there was no
+ * score, which reads as a broken assistant even though the answer was correct.
  */
-const SUGGESTIONS = [
+const REPORT_SUGGESTIONS = [
   'Why did I get this score?',
   'What should I fix first?',
   'Explain my worst finding in plain English',
+]
+
+const GENERAL_SUGGESTIONS = [
+  'What does this engine check?',
+  'What do I need before applying to a payment gateway?',
+  'What is the RBI Merchant Due Diligence checklist?',
 ]
 
 interface Message extends AssistantTurn {
@@ -23,10 +30,12 @@ interface Message extends AssistantTurn {
 
 export function AssistantWidget() {
   const { jobId } = useParams<{ jobId: string }>()
+  const suggestions = jobId ? REPORT_SUGGESTIONS : GENERAL_SUGGESTIONS
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [draft, setDraft] = useState('')
   const [pending, setPending] = useState(false)
+  const [hovered, setHovered] = useState(false)
   const endRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -82,13 +91,19 @@ export function AssistantWidget() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onFocus={() => setHovered(true)}
+        onBlur={() => setHovered(false)}
         aria-label={open ? 'Close the compliance assistant' : 'Open the compliance assistant'}
         className={cn(
           'fixed bottom-5 right-5 z-50 flex h-12 w-12 items-center justify-center rounded-full',
           'bg-accent text-white shadow-lg transition-transform hover:scale-105',
-          // The halo breathes on hover so the entry point reads as live rather than decorative.
-          'hover:animate-pulse-glow focus-visible:animate-pulse-glow',
           'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
+          // The halo breathes while pointed at, so the entry point reads as live. Driven from
+          // React state rather than a CSS :hover rule: the rule was correct and unverifiable,
+          // and "I could not test it" is how the two bugs above got shipped.
+          hovered && 'animate-pulse-glow',
         )}
       >
         {open ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}
@@ -120,11 +135,12 @@ export function AssistantWidget() {
             {messages.length === 0 && (
               <div className="space-y-3">
                 <p className="text-body-sm text-text-secondary">
-                  Ask about anything in your report. I read the same rule files the engine scored
-                  you against.
+                  {jobId
+                    ? 'Ask about anything in your report. I read the same rule files the engine scored you against.'
+                    : 'No scan open, so ask me about the checks themselves. Open a report and I can explain your own findings.'}
                 </p>
                 <div className="space-y-1.5">
-                  {SUGGESTIONS.map((s) => (
+                  {suggestions.map((s) => (
                     <button
                       key={s}
                       type="button"

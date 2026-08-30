@@ -404,3 +404,63 @@ class TestTheChecksPageCanGetBack:
             "the dashboard links to /checks without saying where the reader came from, so the "
             "checks page cannot send them back"
         )
+
+
+class TestAssistantSuggestionsMatchTheContext:
+    """A prompt has to make sense where it is shown.
+
+    The panel offered "Why did I get this score?" on a dashboard with no scans. The answer was
+    correct, it explained there was no score, but a suggestion the app knows cannot apply reads
+    as a broken assistant.
+    """
+
+    def test_there_are_two_suggestion_sets(self):
+        source = _read("features/assistant/AssistantWidget.tsx")
+        assert "REPORT_SUGGESTIONS" in source and "GENERAL_SUGGESTIONS" in source, (
+            "the assistant offers one set of suggestions regardless of whether a report is open"
+        )
+
+    def test_score_questions_are_only_offered_with_a_report(self):
+        source = _read("features/assistant/AssistantWidget.tsx")
+        general = re.search(r"const GENERAL_SUGGESTIONS = \[(.*?)\n\]", source, re.S)
+        assert general, "could not parse GENERAL_SUGGESTIONS"
+
+        offered = re.findall(r"'([^']+)'", general.group(1))
+        assert offered, "GENERAL_SUGGESTIONS is empty"
+        for question in offered:
+            assert not re.search(r"\bmy\b|\bthis score\b|\bI get\b|\bfix first\b", question), (
+                f"{question!r} assumes a report is open, but it is offered when none is"
+            )
+
+    def test_the_chosen_set_depends_on_the_job(self):
+        source = _read("features/assistant/AssistantWidget.tsx")
+        assert re.search(r"jobId \? REPORT_SUGGESTIONS : GENERAL_SUGGESTIONS", source), (
+            "suggestions are not selected by whether a report is open"
+        )
+
+
+class TestTheAssistantGlowIsDrivenByState:
+    """A CSS :hover rule here was correct and unverifiable, and shipped broken twice.
+
+    React state can be driven by a dispatched event in a test or a browser check, so the glow is
+    something that can actually be proven to work rather than eyeballed.
+    """
+
+    def test_hover_is_tracked_in_state(self):
+        source = _read("features/assistant/AssistantWidget.tsx")
+        assert "onMouseEnter" in source and "onMouseLeave" in source, (
+            "the glow depends on a CSS :hover rule, which cannot be verified programmatically"
+        )
+        assert "hovered && 'animate-pulse-glow'" in source
+
+    def test_keyboard_focus_glows_too(self):
+        source = _read("features/assistant/AssistantWidget.tsx")
+        assert "onFocus" in source and "onBlur" in source, (
+            "the glow is mouse-only, so a keyboard user never sees the affordance"
+        )
+
+    def test_the_keyframes_exist(self):
+        config = Path("frontend/tailwind.config.js").read_text(encoding="utf-8")
+        assert "pulseGlow" in config and "pulse-glow" in config, (
+            "the animation the widget asks for is not defined"
+        )

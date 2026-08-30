@@ -89,10 +89,10 @@ export default {
         // glows; only the accent halo breathes.
         pulseGlow: {
           '0%, 100%': {
-            boxShadow: '0 0 0 0 rgba(13,148,251,0.45), 0 10px 15px -3px rgba(0,0,0,0.35)',
+            boxShadow: '0 0 10px 2px rgba(13,148,251,0.55), 0 10px 15px -3px rgba(0,0,0,0.35)',
           },
           '50%': {
-            boxShadow: '0 0 24px 7px rgba(13,148,251,0.5), 0 10px 15px -3px rgba(0,0,0,0.35)',
+            boxShadow: '0 0 30px 10px rgba(13,148,251,0.85), 0 10px 15px -3px rgba(0,0,0,0.35)',
           },
         },
       },
