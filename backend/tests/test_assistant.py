@@ -252,3 +252,70 @@ class TestMarkdownDoesNotReachThePanel:
     def test_the_prompt_asks_for_plain_prose(self):
         """Both halves must be present: the ask, and the enforcement above."""
         assert "No markdown" in assistant.build_prompt("q", None)
+
+
+class TestProviderFailuresAreAnswersNotCrashes:
+    """An expired credential is the most likely failure in practice, and it 500'd.
+
+    `available` existed to say what happened, and only covered the provider returning an empty
+    string. An exception propagated out of the endpoint, so the merchant saw a generic error and
+    nobody could tell an expired key from a network problem without reading server logs.
+    """
+
+    async def _fails_with(self, monkeypatch, error: Exception) -> dict:
+        async def raising(prompt, max_tokens=512):
+            raise error
+
+        monkeypatch.setattr("backend.tools.llm_client.llm_complete", raising)
+        return await assistant.answer_question("why did I fail?", _report())
+
+    async def test_an_expired_credential_is_reported_plainly(self, monkeypatch):
+        class AuthenticationError(Exception):
+            pass
+
+        result = await self._fails_with(monkeypatch, AuthenticationError("401 token expired"))
+
+        assert result["available"] is False
+        assert "expired" in result["answer"], result["answer"]
+        assert result["cited_checks"] == []
+
+    async def test_an_unreachable_endpoint_says_so(self, monkeypatch):
+        class APIConnectionError(Exception):
+            pass
+
+        result = await self._fails_with(monkeypatch, APIConnectionError("no route"))
+        assert "could not be reached" in result["answer"], result["answer"]
+
+    async def test_an_unknown_failure_still_answers(self, monkeypatch):
+        result = await self._fails_with(monkeypatch, ValueError("something odd"))
+        assert result["available"] is False
+        assert "ValueError" in result["answer"]
+
+    async def test_the_answer_says_the_report_still_works(self, monkeypatch):
+        """The merchant must not think their report is affected."""
+        class AuthenticationError(Exception):
+            pass
+
+        result = await self._fails_with(monkeypatch, AuthenticationError("401"))
+        assert "report was produced without one" in result["answer"]
+
+    def test_the_endpoint_returns_200_not_500(self, monkeypatch):
+        from fastapi.testclient import TestClient
+
+        from backend.main import create_app
+
+        class AuthenticationError(Exception):
+            pass
+
+        async def raising(prompt, max_tokens=512):
+            raise AuthenticationError("401 token expired")
+
+        monkeypatch.setattr("backend.tools.llm_client.llm_complete", raising)
+        with TestClient(create_app()) as c:
+            response = c.post("/api/assistant", json={"question": "what should I fix?"})
+
+        assert response.status_code == 200, (
+            "a provider failure reaches the merchant as a server error, so the UI can only "
+            "show a generic message"
+        )
+        assert response.json()["available"] is False

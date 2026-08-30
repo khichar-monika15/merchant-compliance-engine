@@ -15,12 +15,15 @@ is what separates "this is your RBI-001 finding" from "this is the model talking
 """
 from __future__ import annotations
 
+import logging
 import re
 
 from backend import knowledge
 from backend.models.schemas import ReadinessReport
 
 # Enough for an explanation with a worked fix, without inviting an essay.
+logger = logging.getLogger(__name__)
+
 _MAX_ANSWER_TOKENS = 700
 
 # How many earlier turns to replay. The report digest dominates the prompt, so this stays small.
@@ -199,27 +202,55 @@ def cited_checks(answer: str) -> list[str]:
     return seen
 
 
+def _reason_for(error: Exception) -> str:
+    """A merchant-readable cause. The class name is the signal; the provider text is not."""
+    name = type(error).__name__
+    if "Authentication" in name or "PermissionDenied" in name:
+        return "the model credential was rejected, it has most likely expired"
+    if "RateLimit" in name:
+        return "the model provider is rate limiting this key"
+    if "Timeout" in name or "APIConnection" in name:
+        return "the model endpoint could not be reached"
+    return f"the model call failed ({name})"
+
+
+def _unavailable(reason: str) -> str:
+    """What the merchant sees when there is no model. Names the cause and what still works."""
+    return (
+        f"I cannot answer right now because {reason}. This is the only part of MCIE that needs a "
+        "language model. Your report was produced without one, so every finding still has its "
+        "rule and its suggested fix: open a finding in the report to see them."
+    )
+
+
 async def answer_question(
     question: str,
     report: ReadinessReport | None = None,
     history: list[dict] | None = None,
 ) -> dict:
-    """Answer one question. Returns the answer plus which checks it is grounded in."""
+    """Answer one question. Returns the answer plus which checks it is grounded in.
+
+    A provider failure is an answer of its own, not a crash. This used to let the exception
+    propagate, so the single most likely failure in practice, an expired credential, arrived at
+    the merchant as a 500 and a generic "something went wrong". The `available` flag existed
+    precisely to say what happened, and only covered the case where the provider returned an
+    empty string.
+    """
     from backend.tools.llm_client import llm_complete
 
-    raw = await llm_complete(build_prompt(question, report, history), _MAX_ANSWER_TOKENS)
+    try:
+        raw = await llm_complete(build_prompt(question, report, history), _MAX_ANSWER_TOKENS)
+    except Exception as e:
+        logger.warning("Assistant call failed: %s: %s", type(e).__name__, e)
+        return {"answer": _unavailable(_reason_for(e)), "cited_checks": [], "available": False}
+
     text = strip_markdown(raw)
 
     if not text:
-        # No credential, or the provider returned nothing. Said plainly rather than dressed up as
-        # an answer: every other number in this project has a rule-based fallback, and a
-        # conversation cannot have one.
+        # Configured but silent: llm_complete returns "" when nothing is configured at all, and a
+        # provider can also answer with nothing.
         return {
-            "answer": (
-                "The assistant needs a language model and none is reachable right now, so I "
-                "cannot answer questions. Everything in your report was produced without one: "
-                "open a finding to see the rule it came from and the suggested fix."
-            ),
+            "answer": _unavailable("no language model is reachable"),
             "cited_checks": [],
             "available": False,
         }

@@ -72,12 +72,19 @@ export function AssistantWidget() {
         ...m,
         { role: 'assistant', content: reply.answer, cited: reply.cited_checks, failed: !reply.available },
       ])
-    } catch {
+    } catch (error) {
+      // The backend answers provider failures with a reason and available:false, so reaching
+      // here means the request itself failed. Say which, rather than "something went wrong":
+      // that message hid an expired credential behind a shrug.
+      const detail =
+        error && typeof error === 'object' && 'response' in error
+          ? 'the engine returned an error'
+          : 'the engine could not be reached'
       setMessages((m) => [
         ...m,
         {
           role: 'assistant',
-          content: 'Something went wrong reaching the assistant. Your report is unaffected.',
+          content: `I could not answer because ${detail}. Your report is unaffected, and every finding in it still has its rule and its fix.`,
           failed: true,
         },
       ])
