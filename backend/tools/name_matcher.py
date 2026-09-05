@@ -38,10 +38,18 @@ def _has_abbrev_mismatch(a: str, b: str, abbrev: str, full: str) -> bool:
 
 
 def _has_spacing_diff(a: str, b: str) -> bool:
-    """Detect cases where words are merged in one name vs spaced in the other."""
-    a_no_space = re.sub(r"\s+", "", a.lower())
-    b_no_space = re.sub(r"\s+", "", b.lower())
-    return a_no_space == b_no_space and a.lower() != b.lower()
+    """Detect cases where words are merged in one name vs spaced in the other.
+
+    Normalised first, unlike the abbreviation detectors. Those need the raw names, because
+    normalisation is what erases the evidence they look for. This one needs the opposite: on the
+    raw names an abbreviation difference hides the spacing, so 'FreshKart Pvt. Ltd.' against
+    'Fresh Kart Private Limited' reported the wording and never mentioned that the bank account
+    says 'Fresh Kart'.
+    """
+    a, b = normalize_name(a), normalize_name(b)
+    a_no_space = re.sub(r"\s+", "", a)
+    b_no_space = re.sub(r"\s+", "", b)
+    return a_no_space == b_no_space and a != b
 
 
 _DETECTORS = {

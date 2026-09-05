@@ -55,10 +55,10 @@
   },
   "kyc_expected": {
     "overall_consistent": false,
-    "issues_min_count": 5,
-    "issues_max_count": 5
+    "issues_min_count": 6,
+    "issues_max_count": 6
   },
-  "critical_gaps_min": 9,
-  "critical_gaps_max": 11,
+  "critical_gaps_min": 10,
+  "critical_gaps_max": 12,
   "notes": "Grade D: no refund policy or T&C, a thin boilerplate privacy policy, no GSTIN, a US registered office with no Indian place of business, and Pvt./Private plus word-spacing mismatches across the three KYC documents."
 }

@@ -94,9 +94,19 @@ class TestCheckNamePair:
 
     def test_spacing_difference(self):
         result = check_name_pair("FreshKart Private Limited", "Fresh Kart Private Limited", "GST", "Bank")
-        # Should detect spacing difference
         issues_text = " ".join(result["issues"])
-        assert "spacing" in issues_text.lower() or result["match"] is False
+        assert "spacing" in issues_text.lower(), result["issues"]
+
+    def test_spacing_is_reported_when_the_wording_also_differs(self):
+        """The abbreviation must not hide the spacing.
+
+        'FreshKart Pvt. Ltd.' against 'Fresh Kart Private Limited' differs two ways, and only one
+        of them is something the merchant can act on. Run on the raw names the spacing is
+        invisible, because 'freshkartpvt.ltd.' and 'freshkartprivatelimited' differ anyway.
+        """
+        result = check_name_pair("FreshKart Pvt. Ltd.", "Fresh Kart Private Limited", "PAN", "Bank")
+        issues_text = " ".join(result["issues"]).lower()
+        assert "spacing" in issues_text, result["issues"]
 
     @pytest.mark.parametrize("name", ["Anand & Sons", "Brands & Co", "Chandra & Standard Traders"])
     def test_identical_name_with_ampersand_matches(self, name):

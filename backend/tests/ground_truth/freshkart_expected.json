@@ -53,10 +53,10 @@
   },
   "kyc_expected": {
     "overall_consistent": false,
-    "issues_min_count": 5,
-    "issues_max_count": 5
+    "issues_min_count": 6,
+    "issues_max_count": 6
   },
-  "critical_gaps_min": 11,
-  "critical_gaps_max": 13,
+  "critical_gaps_min": 12,
+  "critical_gaps_max": 14,
   "notes": "Grade F: no policy pages at all, 18 third-party scripts of which 15 lack SRI and are counted, no security headers, and Pvt./Private plus spacing mismatches across PAN, GST and bank. The only GSTIN on the site is a commented-out placeholder, which must not count as displayed. The SRI count was 17 until PCI-002's known_exemptions was applied: checkout.razorpay.com/v1/checkout.js and cdn.razorpay.com risk-detection are payment provider scripts that cannot carry an integrity hash, so penalising them was the bug. The overall score is unchanged at 19 because the SRI deduction was already at its cap."
 }
