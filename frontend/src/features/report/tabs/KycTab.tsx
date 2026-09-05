@@ -3,14 +3,11 @@ import { Check, X } from 'lucide-react'
 import type { KYCMatch, KYCResult } from '@/api/types'
 import { Badge, Card, cn } from '@/components/ui'
 
-function NameRow({ label, raw, normalized }: { label: string; raw: string; normalized: string }) {
+function NameRow({ label, raw }: { label: string; raw: string }) {
   return (
     <div>
       <p className="text-overline uppercase text-text-tertiary">{label} as typed</p>
       <p className="break-words font-mono text-caption text-text-primary">{raw}</p>
-      <p className="break-words font-mono text-caption text-text-tertiary">
-        normalised {normalized}
-      </p>
     </div>
   )
 }
@@ -30,8 +27,8 @@ function MatchCard({ label, match }: { label: string; match: KYCMatch }) {
       </div>
 
       <div className="space-y-2">
-        <NameRow label={a} raw={match.raw_a} normalized={match.normalized_a} />
-        <NameRow label={b} raw={match.raw_b} normalized={match.normalized_b} />
+        <NameRow label={a} raw={match.raw_a} />
+        <NameRow label={b} raw={match.raw_b} />
       </div>
 
       {sameAfterNormalising && (
@@ -87,9 +84,8 @@ export function KycTab({ kyc }: { kyc: KYCResult }) {
                   : 'The three documents do not agree'}
               </h3>
               <p className="text-caption text-text-tertiary">
-                RBI-006. Normalising the names is how closeness is measured. Different wording
-                across two documents is still reported, because the check at onboarding compares
-                what each document says.
+                RBI-006. Different wording across two documents is still reported, because the
+                check at onboarding compares what each document says.
               </p>
             </div>
           </div>
