@@ -89,6 +89,9 @@ export interface PCIIssue {
 export interface KYCMatch {
   match: boolean
   similarity: number
+  /** What the merchant typed. Two names can normalise to one string and still be a mismatch. */
+  raw_a: string
+  raw_b: string
   normalized_a: string
   normalized_b: string
   issues: string[]

@@ -40,7 +40,7 @@ const FEATURES = [
   {
     icon: Users,
     title: 'KYC name consistency',
-    body: 'PAN, GST and bank names normalised then compared pairwise, so Pvt versus Private is not a mismatch but a genuine spacing difference is.',
+    body: 'PAN, GST and bank names compared pairwise. Normalising is how closeness is measured, and wording differences like Pvt versus Private are still reported, because the check at onboarding stops on them.',
   },
   {
     icon: FileText,

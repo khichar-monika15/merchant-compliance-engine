@@ -109,6 +109,11 @@ def check_name_pair(name_a: str, name_b: str, label_a: str, label_b: str) -> dic
     return {
         "match": is_match,
         "similarity": round(similarity, 4),
+        # Carried so the report can show what the merchant typed. Two names that normalise to the
+        # same string can still be a mismatch, and then the normalised pair is the one piece of
+        # evidence that does not explain the verdict.
+        "raw_a": name_a,
+        "raw_b": name_b,
         "normalized_a": norm_a,
         "normalized_b": norm_b,
         "issues": issues,

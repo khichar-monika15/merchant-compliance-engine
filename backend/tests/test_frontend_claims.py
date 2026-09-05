@@ -630,3 +630,33 @@ class TestFindingsAreNumbered:
     def test_the_security_findings_are_an_ordered_list(self):
         source = _read("features/report/tabs/SecurityTab.tsx")
         assert "<ol" in source, "the findings list is not numbered"
+
+
+class TestTheKycPanelMatchesTheEngine:
+    """The panel explains the rule to the merchant, and it explained the opposite rule.
+
+    It read "Names are normalised first, so Pvt and Private are not a mismatch on their own"
+    while the engine was calling exactly that a mismatch, and it showed the two normalised
+    strings as the evidence. For 'FreshKart Pvt. Ltd.' against 'FRESHKART PRIVATE LIMITED' those
+    two strings are identical, so the card displayed a mismatch verdict above two matching lines
+    and nothing on screen explained the verdict.
+    """
+
+    FILES = ("features/report/tabs/KycTab.tsx", "pages/LandingPage.tsx")
+
+    @pytest.mark.parametrize("relative", FILES)
+    def test_no_declared_pattern_is_described_as_harmless(self, relative):
+        """Every pattern RBI-006 declares makes the pair a mismatch, so no copy may deny it."""
+        source = _read(relative)
+        assert "not a mismatch" not in source, (
+            f"{relative} tells the reader something is not a mismatch, and RBI-006 declares "
+            f"every one of {kb.quality_criteria('RBI-006')['known_mismatch_patterns']} to be one"
+        )
+
+    def test_the_card_shows_the_names_as_typed(self):
+        """The normalised pair alone cannot explain a mismatch when both sides are equal."""
+        source = _read("features/report/tabs/KycTab.tsx")
+        assert "raw_a" in source and "raw_b" in source, (
+            "the KYC card does not render the names as the merchant typed them, so a mismatch "
+            "between two names that normalise to the same string has no evidence on screen"
+        )

@@ -3,8 +3,23 @@ import { Check, X } from 'lucide-react'
 import type { KYCMatch, KYCResult } from '@/api/types'
 import { Badge, Card, cn } from '@/components/ui'
 
+function NameRow({ label, raw, normalized }: { label: string; raw: string; normalized: string }) {
+  return (
+    <div>
+      <p className="text-overline uppercase text-text-tertiary">{label} as typed</p>
+      <p className="break-words font-mono text-caption text-text-primary">{raw}</p>
+      <p className="break-words font-mono text-caption text-text-tertiary">
+        normalised {normalized}
+      </p>
+    </div>
+  )
+}
+
 function MatchCard({ label, match }: { label: string; match: KYCMatch }) {
   const [a, b] = label.split(' vs ')
+  // The case that reads as a contradiction without a sentence: the two normalised names are the
+  // same string, similarity is 100%, and the verdict is still mismatch.
+  const sameAfterNormalising = !match.match && match.normalized_a === match.normalized_b
   return (
     <Card className={cn(match.match ? 'border-surface-border' : 'border-status-danger/40')}>
       <div className="mb-3 flex items-center justify-between">
@@ -15,19 +30,16 @@ function MatchCard({ label, match }: { label: string; match: KYCMatch }) {
       </div>
 
       <div className="space-y-2">
-        <div>
-          <p className="text-overline uppercase text-text-tertiary">{a} normalised</p>
-          <p className="break-words font-mono text-caption text-text-primary">
-            {match.normalized_a}
-          </p>
-        </div>
-        <div>
-          <p className="text-overline uppercase text-text-tertiary">{b} normalised</p>
-          <p className="break-words font-mono text-caption text-text-primary">
-            {match.normalized_b}
-          </p>
-        </div>
+        <NameRow label={a} raw={match.raw_a} normalized={match.normalized_a} />
+        <NameRow label={b} raw={match.raw_b} normalized={match.normalized_b} />
       </div>
+
+      {sameAfterNormalising && (
+        <p className="mt-3 text-caption text-text-secondary">
+          Both names mean the same company. The two documents word it differently, and the check
+          at onboarding compares the wording.
+        </p>
+      )}
 
       <div className="mt-3 flex items-center gap-2">
         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-border">
@@ -75,8 +87,9 @@ export function KycTab({ kyc }: { kyc: KYCResult }) {
                   : 'The three documents do not agree'}
               </h3>
               <p className="text-caption text-text-tertiary">
-                RBI-006. Names are normalised first, so Pvt and Private are not a mismatch on
-                their own.
+                RBI-006. Normalising the names is how closeness is measured. Different wording
+                across two documents is still reported, because the check at onboarding compares
+                what each document says.
               </p>
             </div>
           </div>

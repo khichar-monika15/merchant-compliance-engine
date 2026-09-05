@@ -1,5 +1,6 @@
 import pytest
 
+from backend import knowledge
 from backend.tools.name_matcher import (
     _MISMATCH_DETECTORS,
     _NORMALIZATION_RULES,
@@ -115,6 +116,17 @@ class TestCheckNamePair:
         assert result["match"] is True
         assert result["issues"] == []
 
+    def test_the_pair_carries_the_names_as_typed(self):
+        """The evidence for the finding has to travel with the finding.
+
+        The panel used to show only the normalised strings, which for 'FreshKart Pvt. Ltd.'
+        against 'FRESHKART PRIVATE LIMITED' are the same string. A mismatch verdict sat above two
+        identical lines, and a report opened from a link has no copy of what the merchant typed.
+        """
+        result = check_name_pair("FreshKart Pvt. Ltd.", "FRESHKART PRIVATE LIMITED", "PAN", "GST")
+        assert result["raw_a"] == "FreshKart Pvt. Ltd."
+        assert result["raw_b"] == "FRESHKART PRIVATE LIMITED"
+
     def test_ampersand_vs_spelled_out_still_detected(self):
         result = check_name_pair("ABC & Sons", "ABC and Sons", "PAN", "GST")
         assert result["match"] is False
@@ -153,3 +165,34 @@ class TestValidateKYCConsistency:
         result = validate_kyc_consistency("Anand & Sons", "Anand & Sons", "Anand & Sons")
         assert result["overall_consistent"] is True
         assert result["common_mismatches"] == []
+
+
+class TestEveryDeclaredPatternIsAMismatch:
+    """RBI-006 lists these patterns, and each one has to make the pair disagree.
+
+    This is the decision the panel copy describes: documents worded differently are a mismatch,
+    because that is what an automated check at onboarding does with them. Normalisation exists so
+    the similarity number is not punished for wording, not to forgive the wording. If that call is
+    ever reversed, this test breaks first, and the copy on the KYC panel and the landing page has
+    to be rewritten in the same change.
+    """
+
+    EXAMPLES = {
+        "& vs and": ("ABC & Sons", "ABC and Sons"),
+        "Pvt vs Private": ("ABC Pvt Traders", "ABC Private Traders"),
+        "Ltd vs Limited": ("ABC Ltd", "ABC Limited"),
+        "word spacing": ("FreshKart Private Limited", "Fresh Kart Private Limited"),
+        "Co vs Company": ("ABC Co", "ABC Company"),
+        "Intl vs International": ("ABC Intl Traders", "ABC International Traders"),
+    }
+
+    def test_every_declared_pattern_has_an_example(self):
+        declared = set(knowledge.quality_criteria("RBI-006")["known_mismatch_patterns"])
+        assert declared == set(self.EXAMPLES), "RBI-006 changed its pattern list"
+
+    @pytest.mark.parametrize("pattern", sorted(EXAMPLES))
+    def test_the_pattern_makes_the_pair_a_mismatch(self, pattern):
+        a, b = self.EXAMPLES[pattern]
+        result = check_name_pair(a, b, "PAN", "GST")
+        assert result["match"] is False, f"{pattern}: {a} vs {b} was accepted as a match"
+        assert any(pattern in issue for issue in result["issues"]), result["issues"]

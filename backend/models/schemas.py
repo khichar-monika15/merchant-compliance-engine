@@ -115,6 +115,8 @@ class PCIResult(BaseModel):
 class KYCMatch(BaseModel):
     match: bool = False
     similarity: float = 0.0
+    raw_a: str = ""
+    raw_b: str = ""
     normalized_a: str = ""
     normalized_b: str = ""
     issues: list[str] = []
